@@ -19,8 +19,8 @@
             appId: "1:365421327175:web:8c74298684c784752e5262"
         };
         
-        const app = initializeApp(firebaseConfig);
-        window.db = getDatabase(app);
+        const firebaseApp = initializeApp(firebaseConfig);
+        window.db = getDatabase(firebaseApp);
         window.firebaseRefs = { ref, push, onValue, off, set, get, remove, onDisconnect, serverTimestamp, update, query, limitToLast };
     </script>
     
@@ -1898,6 +1898,39 @@ color: var(--info-hover);
             color: var(--text-muted);
             font-size: 0.72rem;
         }
+
+        /* ========== AUTO-PREDATOR PANEL ========== */
+        .keyword-tag {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            background: rgba(139,58,58,0.15); border: 1px solid #6b2a2a;
+            color: #d46a6a; border-radius: 4px; font-size: 0.72rem;
+            padding: 0.15rem 0.45rem; margin: 0.15rem;
+        }
+        .keyword-tag button {
+            background: none; border: none; color: #d46a6a;
+            cursor: pointer; font-size: 0.75rem; padding: 0; line-height: 1;
+        }
+        .keyword-input-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+        .keyword-input-row input {
+            flex: 1; background: var(--bg-primary); border: 1px solid var(--border);
+            color: var(--text-primary); padding: 0.5rem 0.75rem;
+            border-radius: 4px; font-size: 0.875rem; outline: none;
+        }
+        .keyword-input-row input:focus { border-color: var(--danger); }
+        .keywords-display { margin-bottom: 0.75rem; min-height: 28px; }
+        .ap-progress-log {
+            background: var(--bg-primary); border: 1px solid var(--border);
+            border-radius: 4px; padding: 0.75rem; font-family: monospace;
+            font-size: 0.75rem; color: var(--text-muted); max-height: 140px;
+            overflow-y: auto; margin-top: 0.75rem; display: none;
+        }
+        .ap-progress-log.visible { display: block; }
+        .predator-export-txt-btn {
+            background: transparent; border: 1px solid #6b2a2a; color: #d46a6a;
+            border-radius: 4px; padding: 0.5rem 1rem; font-size: 0.8rem;
+            cursor: pointer; margin-top: 0.5rem;
+        }
+        .predator-export-txt-btn:hover { background: rgba(139,58,58,0.25); }
     </style>
 </head>
 <body>
@@ -1926,7 +1959,7 @@ color: var(--info-hover);
         </div>
     </div>
 
-    <div class="app" id="app">
+    <div class="app" id="appContainer">
         <header class="app-header">
             <div class="app-title">NightWatch</div>
             <div class="header-spacer"></div>
@@ -2057,6 +2090,7 @@ color: var(--info-hover);
                             <button class="admin-btn" id="btnReloadData">Reload Dataset</button>
                             <button class="admin-btn" id="btnAutoClear" style="border-color: var(--success); color: var(--success);">Auto-Clear Empty Profiles</button>
                             <button class="admin-btn" id="btnSearchComments" style="border-color: var(--info); color: var(--info);">Search Comments</button>
+                            <button class="admin-btn" id="btnAutoPredator" style="border-color: var(--danger); color: var(--danger); grid-column: 1/-1;">🚨 Auto-Classify Predators (Keywords)</button>
                         </div>
                     </div>
 
@@ -2093,6 +2127,68 @@ color: var(--info-hover);
                             </div>
                         </div>
                     </div>
+
+                    <!-- AUTO-PREDATOR MODAL -->
+                    <div class="modal-overlay" id="autoPredatorModal">
+                        <div class="modal" style="max-width:720px;">
+                            <div class="modal-header">
+                                <span class="modal-title">🚨 Auto-Classify Predators</span>
+                                <button class="modal-close" id="autoPredatorModalClose">×</button>
+                            </div>
+                            <div class="modal-body">
+                                <p style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:1rem;">Analisa todos os usuários (exceto <strong>safe</strong>) e move para <strong>Predators</strong> quem tiver comentários com palavras-chave suspeitas, emojis de assédio, ou interações acima dos limiares por nível de conta. Detecta ofuscação (números substituindo letras, pontos, maiúsculas/minúsculas).</p>
+                                <div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:4px;padding:1rem;margin-bottom:1rem;">
+                                    <div style="font-size:0.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.5rem;">Palavras-chave personalizadas</div>
+                                    <div class="keyword-input-row">
+                                        <input type="text" id="apKeywordInput" placeholder="Digite uma palavra e pressione Enter ou clique em Adicionar">
+                                        <button class="admin-btn" id="apAddKeyword" style="padding:0.4rem 0.75rem;font-size:0.8rem;">Adicionar</button>
+                                    </div>
+                                    <div class="keywords-display" id="apKeywordsDisplay"></div>
+                                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.25rem;">Padrões embutidos: telegram, tlg, tg, snapchat, teleguard, galaxia, galaxy, ponte, puente, handstand, parada de manos, calcinha, look, gostosa, troco, pv, privado…</div>
+                                </div>
+                                <div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:4px;padding:1rem;margin-bottom:1rem;">
+                                    <div style="font-size:0.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.75rem;">Limiares de interação para contas nível ≥ 30</div>
+                                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;font-size:0.8rem;">
+                                        <label style="display:flex;flex-direction:column;gap:0.25rem;">
+                                            <span style="color:var(--text-muted);">Entradas acima de</span>
+                                            <input type="number" id="apThreshJoins" value="3" min="1" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:0.35rem 0.5rem;border-radius:4px;font-size:0.8rem;outline:none;">
+                                        </label>
+                                        <label style="display:flex;flex-direction:column;gap:0.25rem;">
+                                            <span style="color:var(--text-muted);">Presentes acima de</span>
+                                            <input type="number" id="apThreshGifts" value="2" min="1" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:0.35rem 0.5rem;border-radius:4px;font-size:0.8rem;outline:none;">
+                                        </label>
+                                        <label style="display:flex;flex-direction:column;gap:0.25rem;">
+                                            <span style="color:var(--text-muted);">Comentários acima de</span>
+                                            <input type="number" id="apThreshComments" value="1" min="1" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:0.35rem 0.5rem;border-radius:4px;font-size:0.8rem;outline:none;">
+                                        </label>
+                                    </div>
+                                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.5rem;">Aplica apenas a contas com nível ≥ 30.</div>
+                                </div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+                                    <div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:4px;padding:0.75rem;font-size:0.8rem;">
+                                        <div style="color:var(--text-muted);margin-bottom:0.25rem;">Prontos para analisar</div>
+                                        <div id="apStatTotal" style="font-size:1.5rem;font-weight:600;">—</div>
+                                    </div>
+                                    <div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:4px;padding:0.75rem;font-size:0.8rem;">
+                                        <div style="color:var(--danger);margin-bottom:0.25rem;">Serão marcados Predator</div>
+                                        <div id="apStatFound" style="font-size:1.5rem;font-weight:600;color:var(--danger);">—</div>
+                                    </div>
+                                </div>
+                                <div style="margin-bottom:0.75rem;">
+                                    <div class="progress-bar-bg">
+                                        <div class="progress-bar-fill" id="apProgressBar" style="width:0%;background:var(--danger);"></div>
+                                    </div>
+                                </div>
+                                <div class="ap-progress-log" id="apProgressLog"></div>
+                                <div style="display:flex;gap:0.75rem;margin-top:1rem;flex-wrap:wrap;">
+                                    <button class="admin-btn" id="apPreviewBtn" style="flex:1;border-color:var(--info);color:var(--info);">🔍 Pré-visualizar</button>
+                                    <button class="admin-btn" id="apRunBtn" style="flex:1;background:var(--danger);border-color:var(--danger);color:#fff;" disabled>🚨 Executar</button>
+                                    <button class="admin-btn" id="apStopBtn" style="flex:1;display:none;background:var(--warning);border-color:var(--warning);">⏹ Parar</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- FIM AUTO-PREDATOR MODAL -->
 
                     <div class="modal-overlay" id="commentSearchModal">
                         <div class="modal" style="max-width:680px;">
@@ -2362,6 +2458,11 @@ color: var(--info-hover);
                     <div class="pagination" id="predatorsPaginationBottom"></div>
                 </div>
 
+                    <div style="margin-top:1rem;padding:1rem;background:var(--bg-secondary);border:1px solid #6b2a2a;border-radius:6px;">
+                        <div style="font-size:0.8rem;font-weight:600;color:#d46a6a;margin-bottom:0.5rem;">📄 Exportar para Scraper</div>
+                        <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.75rem;">Gera <code style="color:var(--info);">perfis.txt</code> com os usernames dos Predators no formato que o <code style="color:var(--info);">scraper.js</code> aceita.</p>
+                        <button class="predator-export-txt-btn" id="btnExportPredatorsTxt">⬇ Baixar perfis.txt (Predators)</button>
+                    </div>
                 <div class="view" id="view-suspects">
                     <div class="view-header">
                         <h1 class="view-title">Suspects</h1>
@@ -4645,1035 +4746,746 @@ const div = document.createElement('div');
                             <div class="user-card-info">
                                 <div class="user-card-name">${u.nickname || 'Unknown'} ${aliasNote}</div>
                                 <div class="user-card-username">@${u.unique_id || 'unknown'}</div>
-                                <div class="user-card-stats">
-                                    <span>${u.stats?.total_comments || 0} comments</span>
-                                    <span>${u.stats?.total_gifts || 0} gifts</span>
-                                    <span>${u.stats?.total_likes || 0} likes</span>
-                                </div>
-                            </div>
-                            <div class="user-card-status status-${status}">${status}</div>
-                            ${state.role === 'admin' ? `
-                                <button class="admin-btn" style="margin-left: 0.5rem;" onclick="event.stopPropagation(); adminController.editReview('${u.uid}')">
-                                    Edit
-                                </button>
-                            ` : ''}
-                        </div>
-                    `;}).join('');
+                                
+            // Auto-Predator bindings
+            const btnAutoPredator = document.getElementById('btnAutoPredator');
+            if (btnAutoPredator) btnAutoPredator.addEventListener('click', () => autoPredatorController.openModal());
+
+            const autoPredatorModalClose = document.getElementById('autoPredatorModalClose');
+            if (autoPredatorModalClose) autoPredatorModalClose.addEventListener('click', () => autoPredatorController.closeModal());
+
+            const autoPredatorModal = document.getElementById('autoPredatorModal');
+            if (autoPredatorModal) autoPredatorModal.addEventListener('click', e => { if (e.target === autoPredatorModal) autoPredatorController.closeModal(); });
+
+            const apPreviewBtn = document.getElementById('apPreviewBtn');
+            if (apPreviewBtn) apPreviewBtn.addEventListener('click', () => autoPredatorController.preview());
+
+            const apRunBtn = document.getElementById('apRunBtn');
+            if (apRunBtn) apRunBtn.addEventListener('click', () => autoPredatorController.run());
+
+            const apStopBtn = document.getElementById('apStopBtn');
+            if (apStopBtn) apStopBtn.addEventListener('click', () => autoPredatorController.stop());
+
+            const apAddKeyword = document.getElementById('apAddKeyword');
+            const apKeywordInput = document.getElementById('apKeywordInput');
+            const addKw = () => {
+                if (!apKeywordInput) return;
+                const kw = apKeywordInput.value.trim();
+                if (kw && autoPredatorController.addKeyword(kw)) {
+                    apKeywordInput.value = '';
+                    autoPredatorController.renderKeywords();
+                } else if (kw) {
+                    apKeywordInput.style.borderColor = 'var(--warning)';
+                    setTimeout(() => { apKeywordInput.style.borderColor = ''; }, 1200);
                 }
-            }
+            };
+            if (apAddKeyword) apAddKeyword.addEventListener('click', addKw);
+            if (apKeywordInput) apKeywordInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); addKw(); } });
+
+            const btnExportPredatorsTxt = document.getElementById('btnExportPredatorsTxt');
+            if (btnExportPredatorsTxt) btnExportPredatorsTxt.addEventListener('click', () => exportPredatorsAsTxt());
+
+            app.init();
+        });
+
+        window.reviewController = reviewController;
+        window.ui = ui;
+        window.adminController = adminController;
+        window.autoClearController = autoClearController;
+        window.listController = listController;
+        window.paginationController = paginationController;
+        window.syncManager = syncManager;
+        window.translationService = translationService;
+        window.chatController = chatController;
+    </script>
+</body>
+</html>>
+    <script>
+        // ================================================================
+        // AUTO-PREDATOR CONTROLLER
+        // ================================================================
+        const autoPredatorController = {
+            running: false, stopped: false,
+            BUILTIN_KEYWORDS: [
+                'telegram','telegrama','teleguard','tg','tlg','snapchat',
+                'galaxia','galaxy','ponte','puente','handstand',
+                'parada de manos','calcinha','look','gostosa','troco',
+                'pv','privado','privada'
+            ],
+            HARASSMENT_EMOJIS: [
+                '\u{1F455}','\u{1F457}','\u{1F9E6}','\u261D','\u{1F446}',
+                '\u{1F447}','\u{1F448}','\u{1F449}','\u{1F456}','\u{1FA73}',
+                '\u{1F9B6}','\u{1F381}','\u{1F30C}','\u{1F48B}','\u{1F444}',
+                '\u{1F445}','\u{1F346}','\u{1F351}'
+            ],
+            userKeywords: [],
+            STORAGE_KEY: 'nw_ap_keywords',
+            loadKeywords() {
+                try { const r = localStorage.getItem(this.STORAGE_KEY); this.userKeywords = r ? JSON.parse(r) : []; } catch(e) { this.userKeywords = []; }
+            },
+            saveKeywords() {
+                try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.userKeywords)); } catch(e) {}
+            },
+            addKeyword(kw) {
+                kw = kw.trim().toLowerCase();
+                if (!kw || this.userKeywords.includes(kw) || this.BUILTIN_KEYWORDS.includes(kw)) return false;
+                this.userKeywords.push(kw); this.saveKeywords(); return true;
+            },
+            removeKeyword(kw) { this.userKeywords = this.userKeywords.filter(k => k !== kw); this.saveKeywords(); },
+            getAllKeywords() { return [...this.BUILTIN_KEYWORDS, ...this.userKeywords]; },
+            normalizeText(text) {
+                if (!text) return '';
+                return text.toLowerCase().replace(/[.\-_\s]/g,'')
+                    .replace(/0/g,'o').replace(/1/g,'l').replace(/3/g,'e')
+                    .replace(/4/g,'a').replace(/5/g,'s').replace(/6/g,'g')
+                    .replace(/7/g,'t').replace(/8/g,'b').replace(/9/g,'g')
+                    .replace(/\$/g,'s').replace(/@/g,'a').replace(/\|/g,'i').replace(/!/g,'i');
+            },
+            textContainsKeyword(text, kw) { return this.normalizeText(text).includes(this.normalizeText(kw)); },
+            isOnlyEmojis(text) {
+                if (!text || !text.trim()) return false;
+                const w = text.replace(/\p{Emoji_Presentation}/gu,'').replace(/\s/g,'');
+                return w.length === 0 && /\p{Emoji_Presentation}/u.test(text);
+            },
+            isEmojiWithOnlySymbols(text) {
+                if (!text || !text.trim()) return false;
+                const w = text.replace(/\p{Emoji_Presentation}/gu,'').replace(/[=+\-×xX\s]/g,'');
+                return /\p{Emoji_Presentation}/u.test(text) && w.length === 0 && text.trim().length > 0;
+            },
+            containsHarassmentEmoji(text) {
+                if (!text) return false;
+                for (const e of this.HARASSMENT_EMOJIS) { if (text.includes(e)) return true; }
+                if (/[\u{1F3FB}-\u{1F3FF}]/u.test(text)) {
+                    const s = text.replace(/[\u{1F3FB}-\u{1F3FF}]/gu,'');
+                    for (const e of this.HARASSMENT_EMOJIS) { if (s.includes(e)) return true; }
+                }
+                return false;
+            },
+            analyzeComments(user, keywords) {
+                const comments = user.interactions?.comments || [];
+                const reasons = [];
+                for (const c of comments) {
+                    const text = c.text || '';
+                    for (const kw of keywords) {
+                        if (this.textContainsKeyword(text, kw)) { reasons.push(`keyword:"${kw}"`); break; }
+                    }
+                    if (this.isOnlyEmojis(text)) reasons.push(`emoji isolado`);
+                    else if (this.isEmojiWithOnlySymbols(text)) reasons.push(`emoji+símbolo`);
+                    if (this.containsHarassmentEmoji(text)) reasons.push(`emoji assédio`);
+                }
+                return reasons;
+            },
+            checkHighLevelThreshold(user, tJ, tG, tC) {
+                const lvl = user.user_level || user.gifter_level || 0;
+                if (lvl < 30) return null;
+                const reasons = [];
+                if ((user.stats?.total_joins||0) > tJ) reasons.push(`nível ${lvl} joins>${tJ}`);
+                if ((user.stats?.total_gifts||0) > tG) reasons.push(`nível ${lvl} gifts>${tG}`);
+                if ((user.stats?.total_comments||0) > tC) reasons.push(`nível ${lvl} comments>${tC}`);
+                return reasons.length ? reasons : null;
+            },
+            openModal() {
+                if (state.role !== 'admin') return;
+                this.loadKeywords(); this.renderKeywords(); this.resetProgress();
+                if (state.data?.users) {
+                    const total = state.data.users.filter(u => state.reviews[u.uid]?.status !== 'safe').length;
+                    const el = document.getElementById('apStatTotal');
+                    if (el) el.textContent = total.toLocaleString();
+                }
+                const sf = document.getElementById('apStatFound'); if (sf) sf.textContent = '—';
+                document.getElementById('autoPredatorModal').classList.add('active');
+            },
+            closeModal() {
+                if (this.running) this.stopped = true;
+                document.getElementById('autoPredatorModal').classList.remove('active');
+            },
+            renderKeywords() {
+                const el = document.getElementById('apKeywordsDisplay'); if (!el) return;
+                if (!this.userKeywords.length) { el.innerHTML = '<span style="color:var(--text-muted);font-size:0.75rem;">Nenhuma palavra personalizada</span>'; return; }
+                el.innerHTML = this.userKeywords.map(kw => `<span class="keyword-tag">${kw}<button onclick="autoPredatorController.removeKeyword('${kw}');autoPredatorController.renderKeywords();">×</button></span>`).join('');
+            },
+            resetProgress() {
+                const log = document.getElementById('apProgressLog'); if (log) { log.innerHTML=''; log.classList.remove('visible'); }
+                const bar = document.getElementById('apProgressBar'); if (bar) bar.style.width='0%';
+                const rb = document.getElementById('apRunBtn'); if (rb) rb.disabled=true;
+                const sb = document.getElementById('apStopBtn'); if (sb) sb.style.display='none';
+            },
+            log(msg) {
+                const log = document.getElementById('apProgressLog'); if (!log) return;
+                log.classList.add('visible');
+                const d = document.createElement('div'); d.textContent = msg;
+                log.appendChild(d); log.scrollTop = log.scrollHeight;
+            },
+            getThresholds() {
+                return {
+                    joins:    parseInt(document.getElementById('apThreshJoins')?.value)||3,
+                    gifts:    parseInt(document.getElementById('apThreshGifts')?.value)||2,
+                    comments: parseInt(document.getElementById('apThreshComments')?.value)||1
+                };
+            },
+            async preview() {
+                if (!state.data?.users) return;
+                this.loadKeywords();
+                const keywords = this.getAllKeywords(), thr = this.getThresholds();
+                const log = document.getElementById('apProgressLog');
+                if (log) { log.innerHTML=''; log.classList.add('visible'); }
+                const bar = document.getElementById('apProgressBar');
+                const sf = document.getElementById('apStatFound');
+                const pb = document.getElementById('apPreviewBtn');
+                const rb = document.getElementById('apRunBtn');
+                if (pb) { pb.disabled=true; pb.textContent='⏳ Analisando...'; }
+                if (bar) bar.style.width='0%';
+                const users = state.data.users;
+                let found=0; const toFlag=[];
+                const yieldUI = () => new Promise(r=>setTimeout(r,0));
+                for (let i=0; i<users.length; i++) {
+                    const u = users[i];
+                    if (state.reviews[u.uid]?.status==='safe') continue;
+                    const cr = this.analyzeComments(u, keywords);
+                    const lr = this.checkHighLevelThreshold(u, thr.joins, thr.gifts, thr.comments);
+                    const all = [...cr, ...(lr||[])];
+                    if (all.length > 0) {
+                        found++;
+                        toFlag.push({user:u, reasons:all});
+                        const already = state.reviews[u.uid]?.status==='predator';
+                        this.log(`${already?'[já predator]':'[NOVO]'} @${u.unique_id||u.uid}: ${all[0]}`);
+                    }
+                    if (bar) bar.style.width=((i+1)/users.length*100)+'%';
+                    if (i%300===0) await yieldUI();
+                }
+                if (sf) sf.textContent = found.toLocaleString();
+                this.log(`─── Total: ${found} ───`);
+                if (pb) { pb.disabled=false; pb.textContent='🔍 Pré-visualizar'; }
+                if (rb) rb.disabled = found===0;
+                this._toFlag = toFlag;
+            },
+            async run() {
+                if (!this._toFlag?.length) { alert('Execute a Pré-visualização primeiro.'); return; }
+                if (this.running) return;
+                this.running=true; this.stopped=false;
+                const rb=document.getElementById('apRunBtn'), sb=document.getElementById('apStopBtn'), bar=document.getElementById('apProgressBar');
+                if (rb) rb.style.display='none'; if (sb) sb.style.display='';
+                const now=Date.now(); let done=0;
+                const yieldUI=()=>new Promise(r=>setTimeout(r,0));
+                for (const {user} of this._toFlag) {
+                    if (this.stopped) { this.log('⏹ Parado.'); break; }
+                    if (state.reviews[user.uid]?.status!=='safe') {
+                        state.reviews[user.uid]={status:'predator',timestamp:now,reviewer:state.user+' [auto-keyword]',userData:{nickname:user.nickname,unique_id:user.unique_id,sec_uid:user.sec_uid}};
+                        state.reviewedSet.add(user.uid); done++;
+                        this.log(`✅ @${user.unique_id||user.uid} → predator`);
+                    }
+                    if (bar) bar.style.width=(done/this._toFlag.length*100)+'%';
+                    if (done%50===0) await yieldUI();
+                }
+                syncManager.saveReviews(true);
+                buildReviewedSet(); buildReportedIndex(); statsController.update();
+                this.running=false;
+                if (rb) rb.style.display=''; if (sb) sb.style.display='none';
+                this.log(`─── Classificados: ${done} ───`);
+                if (state.view==='predators') listController.render('predator','listPredators','predators');
+                if (state.view==='review') { reviewController.initShuffle(); reviewController.loadNext(); }
+            },
+            stop() { this.stopped=true; }
         };
 
-        const adminController = {
-            exportData(status) {
-                let data;
-                if (status === 'all') {
-                    data = state.reviews;
-                } else {
-                    data = Object.fromEntries(
-                        Object.entries(state.reviews).filter(([uid, r]) => r.status === status)
-                    );
+        window.autoPredatorController = autoPredatorController;
+
+        function exportPredatorsAsTxt() {
+            const entries = Object.entries(state.reviews).filter(([,r])=>r.status==='predator');
+            if (!entries.length) { alert('Nenhum predator para exportar.'); return; }
+            const lines = ['# perfis.txt — NightWatch','# '+new Date().toISOString(),''];
+            for (const [uid, review] of entries) {
+                const user = state.userMap.get(uid);
+                const username = user?.unique_id || review.userData?.unique_id;
+                if (username) lines.push(username);
+            }
+            const blob = new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href=url; a.download=`perfis_${Date.now()}.txt`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            setTimeout(()=>URL.revokeObjectURL(url),2000);
+        }
+    </script>
+                        ${hasActivity ? `<button onclick="intelPanel.openUserModal('${uidSafe}')"
+                            style="background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-secondary);border-radius:4px;padding:0.25rem 0.65rem;font-size:0.72rem;cursor:pointer;white-space:nowrap;flex-shrink:0;">View</button>` : ''}
+                    </div>`;
+                }).join('');
+            },
+
+            // ── Per-user modal with comments + gifts ─────────────────────
+            openUserModal(uid) {
+                const u = this.raw.find(x => (x.uid||x.unique_id) === uid);
+                if (!u) return;
+                const modal = document.getElementById('intelUserCommentsModal');
+                const title = document.getElementById('intelUserCommentsTitle');
+                const listEl = document.getElementById('intelUserCommentsList');
+                if (!modal || !listEl) return;
+
+                title.textContent = `${u.nickname || u.unique_id} (@${u.unique_id})`;
+
+                const comments = (u.interactions?.comments || [])
+                    .filter(c => c.text?.trim())
+                    .sort((a,b) => (b.count||1)-(a.count||1));
+                const gifts = u.interactions?.gifts || [];
+
+                let html = '';
+
+                // Gifts section
+                if (gifts.length) {
+                    const totalGifts = u.stats?.total_gifts || gifts.reduce((s,g)=>s+(g.count||1),0);
+                    html += `<div class="intel-section-title">🎁 Gifts — ${totalGifts} total</div>`;
+                    gifts.forEach(g => {
+                        const dateStr = g.at ? ` <span style="color:var(--text-muted);font-size:0.68rem;">${new Date(g.at).toLocaleString()}</span>` : '';
+                        html += `<div class="gift-live-row" style="margin-bottom:0.3rem;">
+                            <span style="color:var(--text-secondary);font-weight:600;">×${g.count||1}</span>
+                            ${this.esc(g.name||'Unknown')}${dateStr}
+                        </div>`;
+                    });
                 }
-                
-                const json = JSON.stringify(data, null, 2);
-                const blob = new Blob([json], { type: 'application/json' });
+
+                // Comments section
+                if (comments.length) {
+                    html += `<div class="intel-section-title" style="margin-top:${gifts.length?'1rem':'0'};">💬 Comments (${comments.length} unique)</div>`;
+                    comments.forEach(c => {
+                        const removed = this.removedComments.has(c.text.trim());
+                        const cnt = c.count > 1 ? `×${c.count}` : '';
+                        const firstStr = c.first_at ? new Date(c.first_at).toLocaleString() : '';
+                        const lastStr  = c.last_at  ? new Date(c.last_at).toLocaleString()  : '';
+                        const dateStr = firstStr
+                            ? (lastStr && lastStr !== firstStr
+                                ? `${firstStr} → ${lastStr}`
+                                : firstStr)
+                            : '';
+                        html += `<div class="intel-comment-row ${removed?'removed':''}">
+                            <button onclick="intelPanel.toggleComment(${JSON.stringify(c.text.trim())}); intelPanel.openUserModal('${uid}')"
+                                style="background:none;border:1px solid var(--border);color:${removed?'var(--success)':'var(--danger)'};border-radius:3px;padding:0.1rem 0.4rem;cursor:pointer;font-size:0.7rem;flex-shrink:0;">${removed?'↩':'✕'}</button>
+                            <span class="intel-comment-text">${this.esc(c.text.trim())}</span>
+                            <span class="intel-comment-count" style="display:flex;flex-direction:column;align-items:flex-end;gap:0.1rem;">
+                                ${cnt ? `<span>${cnt}</span>` : ''}
+                                ${dateStr ? `<span style="font-size:0.65rem;color:var(--text-muted);">${dateStr}</span>` : ''}
+                            </span>
+                        </div>`;
+                    });
+                }
+
+                if (!html) html = `<div style="color:var(--text-muted);text-align:center;padding:1.5rem;">No interactions recorded</div>`;
+                listEl.innerHTML = html;
+                modal.classList.add('active');
+            },
+
+            toggleComment(text) {
+                if (this.removedComments.has(text)) this.removedComments.delete(text);
+                else this.removedComments.add(text);
+                const f = document.getElementById('intelCommentFilter')?.value || '';
+                this.renderComments(f);
+                this.renderProfileList(this._sorted());
+            },
+
+            removeAll() {
+                const f = (document.getElementById('intelCommentFilter')?.value||'').toLowerCase();
+                this.allComments.filter(c => !f || c.text.toLowerCase().includes(f)).forEach(c => this.removedComments.add(c.text));
+                this.renderComments(f);
+            },
+
+            restoreAll() {
+                this.removedComments.clear();
+                this.renderComments(document.getElementById('intelCommentFilter')?.value || '');
+            },
+
+            // ── Export ZIP ───────────────────────────────────────────────
+            async exportZip() {
+                if (!this.raw.length) { alert('Load data first.'); return; }
+                const opName = (document.getElementById('intelOpName')?.value.trim() || 'OPERATION').toUpperCase().replace(/\s+/g,'_');
+                const sorted = this._sorted();
+
+                if (typeof JSZip === 'undefined') await this._loadJSZip();
+                const zip = new JSZip();
+                const folder = zip.folder(opName);
+
+                folder.file(`${opName}_REPORT.txt`, this._buildReport(opName, sorted));
+
+                const reportedEntries = sorted.map(u => ({
+                    username: u.unique_id || '',
+                    uid: String(u.uid || ''),
+                    sec_uid: u.sec_uid || u.secUid || ''
+                })).filter(e => e.uid || e.username);
+                folder.file(`${opName}_REPORTED.txt`, this._buildReportedFile(opName, reportedEntries));
+
+                const blob = await zip.generateAsync({ type: 'blob' });
                 const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `nightwatch_${status}_${Date.now()}.json`;
-                a.click();
+                const a = document.createElement('a'); a.href = url; a.download = `${opName}.zip`; a.click();
                 URL.revokeObjectURL(url);
             },
 
-            searchUsers() {
-                const query = prompt('Search by username or nickname:');
-                if (!query || !query.trim()) return;
-                
-                const matches = state.data.users.filter(u => 
-                    (u.unique_id && u.unique_id.toLowerCase().includes(query.toLowerCase().trim())) ||
-                    (u.nickname && u.nickname.toLowerCase().includes(query.toLowerCase().trim()))
-                ).slice(0, 20);
-                
-                if (matches.length === 0) {
-                    alert('No users found');
-                    return;
-                }
-                
-                const list = matches.map((u, i) => 
-                    `${i + 1}. ${u.nickname || 'Unknown'} (@${u.unique_id || 'unknown'})`
-                ).join('\n');
-                
-                const choice = prompt(`Found ${matches.length} users:\n\n${list}\n\nEnter number to view:`);
-                const num = parseInt(choice);
-                if (num && matches[num - 1]) {
-                    reviewController.loadUser(matches[num - 1].uid);
-                    ui.switchView('review');
-                }
+            async _loadJSZip() {
+                return new Promise((res, rej) => {
+                    const s = document.createElement('script');
+                    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+                    s.onload = res; s.onerror = rej;
+                    document.head.appendChild(s);
+                });
             },
 
-            reloadData() {
-                if (confirm('Reload dataset from server? Current progress will be kept.')) {
-                    app.loadData();
-                }
-            },
+            _buildReport(opName, users) {
+                const sep = '─'.repeat(72), sep2 = '═'.repeat(72);
+                const lines = [
+                    sep2,
+                    `OPERATION: ${opName}`,
+                    `GENERATED: ${new Date().toISOString()}`,
+                    `TOTAL SUBJECTS: ${users.length}`,
+                    sep2, ''
+                ];
+                users.forEach((u, idx) => {
+                    lines.push(`[${String(idx+1).padStart(3,'0')}]`);
+                    lines.push(`HANDLE            @${u.unique_id || ''}`);
+                    if (u.nickname && u.nickname !== u.unique_id)
+                        lines.push(`DISPLAY NAME      ${u.nickname}`);
 
-            downloadProfile(uid) {
-                const user = state.userMap.get(uid);
-                if (!user) return;
-                const btn = document.getElementById('btnDownloadProfile');
-                if (btn) { btn.textContent = '⏳ building...'; btn.disabled = true; }
-                setTimeout(() => {
-                    try {
-                        const review = state.reviews[uid] || null;
-                        const ix = user.interactions || {};
-                        const comments = ix.comments || [];
-                        const gifts    = ix.gifts    || [];
-                        const joins    = ix.joins    || [];
-                        const likes    = ix.likes    || [];
-
-                        const parts = [];
-
-                        // header
-                        parts.push(
-                            `// nightwatch profile dump\n`,
-                            `// uid: ${user.uid}\n`,
-                            `// ${user.nickname || '?'} | @${user.unique_id || '?'}\n`,
-                            `// exported: ${new Date().toISOString()}\n\n`
-                        );
-
-                        // dump every field on the user object except interactions (raw as-is)
-                        parts.push(`-- profile --\n`);
-                        for (const k of Object.keys(user)) {
-                            if (k === 'interactions') continue;
-                            const v = user[k];
-                            const out = (v === null || v === undefined) ? 'null'
-                                      : (typeof v === 'object' ? JSON.stringify(v) : String(v));
-                            parts.push(`${k}: ${out}\n`);
-                        }
-
-                        // review
-                        if (review) {
-                            parts.push(`\n-- review --\n`);
-                            for (const k of Object.keys(review)) {
-                                const v = review[k];
-                                const out = (v === null || v === undefined) ? 'null'
-                                          : (typeof v === 'object' ? JSON.stringify(v) : String(v));
-                                parts.push(`${k}: ${out}\n`);
-                            }
-                        }
-
-                        // helper: dump one item raw, expanding one level of nested objects
-                        const dumpItem = (item) => {
-                            for (const k of Object.keys(item)) {
-                                const v = item[k];
-                                if (v === null || v === undefined) {
-                                    parts.push(`  ${k}: null\n`);
-                                } else if (typeof v === 'object' && !Array.isArray(v)) {
-                                    parts.push(`  ${k}:\n`);
-                                    for (const kk of Object.keys(v)) {
-                                        const vv = v[kk];
-                                        const out = (vv === null || vv === undefined) ? 'null'
-                                                  : (typeof vv === 'object' ? JSON.stringify(vv) : String(vv));
-                                        parts.push(`    ${kk}: ${out}\n`);
-                                    }
-                                } else if (Array.isArray(v)) {
-                                    parts.push(`  ${k}: ${JSON.stringify(v)}\n`);
-                                } else {
-                                    parts.push(`  ${k}: ${v}\n`);
-                                }
-                            }
-                        };
-
-                        if (comments.length) {
-                            parts.push(`\n-- comments [${comments.length}] --\n`);
-                            for (let i = 0; i < comments.length; i++) {
-                                parts.push(`\n[${i}]\n`);
-                                dumpItem(comments[i]);
-                            }
-                        }
-                        if (gifts.length) {
-                            parts.push(`\n-- gifts [${gifts.length}] --\n`);
-                            for (let i = 0; i < gifts.length; i++) {
-                                parts.push(`\n[${i}]\n`);
-                                dumpItem(gifts[i]);
-                            }
-                        }
-                        if (likes.length) {
-                            parts.push(`\n-- likes [${likes.length}] --\n`);
-                            for (let i = 0; i < likes.length; i++) {
-                                parts.push(`\n[${i}]\n`);
-                                dumpItem(likes[i]);
-                            }
-                        }
-                        if (joins.length) {
-                            parts.push(`\n-- joins [${joins.length}] --\n`);
-                            for (let i = 0; i < joins.length; i++) {
-                                parts.push(`\n[${i}]\n`);
-                                dumpItem(joins[i]);
-                            }
-                        }
-
-                        const blob = new Blob(parts, { type: 'text/plain' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `nw_${user.unique_id || user.uid}_${Date.now()}.txt`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        setTimeout(() => URL.revokeObjectURL(url), 2000);
-                    } catch(e) {
-                        console.error('downloadProfile error', e);
-                    } finally {
-                        if (btn) { btn.textContent = '⬇ dump profile'; btn.disabled = false; }
+                    // Filtered comments sorted by count, with dates
+                    const comments = (u.interactions?.comments || [])
+                        .filter(c => !this.removedComments.has((c.text||'').trim()) && c.text?.trim())
+                        .sort((a,b) => (b.count||1)-(a.count||1));
+                    if (comments.length) {
+                        lines.push(`COMMENTS          (${comments.length} unique)`);
+                        comments.forEach(c => {
+                            const cnt   = c.count > 1 ? ` ×${c.count}` : '';
+                            const dates = [
+                                c.first_at ? new Date(c.first_at).toLocaleString() : '',
+                                c.last_at && c.last_at !== c.first_at ? new Date(c.last_at).toLocaleString() : ''
+                            ].filter(Boolean).join(' → ');
+                            lines.push(`  > ${c.text.trim()}${cnt}${dates ? ` [${dates}]` : ''}`);
+                        });
                     }
-                }, 0);
+
+                    // Gifts — count only, no diamond values
+                    const gifts = u.interactions?.gifts || [];
+                    const totalGifts = u.stats?.total_gifts || gifts.reduce((s,g)=>s+(g.count||1),0);
+                    if (totalGifts > 0) {
+                        lines.push(`GIFTS SENT        ${totalGifts} total`);
+                    }
+
+                    if (!comments.length && !totalGifts) {
+                        lines.push(`NOTE              Observed across multiple live sessions (no direct interactions)`);
+                    }
+
+                    // IDs last
+                    if (u.uid)    lines.push(`UID               ${u.uid}`);
+                    const secUid = u.sec_uid || u.secUid;
+                    if (secUid)   lines.push(`SECUID            ${secUid}`);
+                    lines.push(sep, '');
+                });
+                return lines.join('\n');
             },
 
-            editReview(uid) {
-                const user = state.userMap.get(uid);
-                const current = state.reviews[uid]?.status;
-                
-                const newStatus = prompt(
-                    `Edit ${user?.nickname || 'Unknown'}\nCurrent: ${current || 'none'}\n\nOptions: predator, suspect, cleared, delete`,
-                    current || ''
-                );
-                
-                if (!newStatus) return;
-                
-                const status = newStatus.trim().toLowerCase();
-                
-                if (status === 'delete') {
-                    delete state.reviews[uid];
-                    state.reviewedSet.delete(uid);
-                } else if (['predator', 'suspect', 'cleared', 'safe', 'reported'].includes(status)) {
-                    state.reviews[uid] = {
-                        status: status,
-                        timestamp: Date.now(),
-                        reviewer: state.user,
-                        userData: {
-                            nickname: user?.nickname,
-                            unique_id: user?.unique_id,
-                            sec_uid: user?.sec_uid
-                        }
-                    };
-                    state.reviewedSet.add(uid);
-                } else {
-                    alert('Invalid status');
-                    return;
-                }
+            _buildReportedFile(opName, entries) {
+                return [
+                    `# NIGHTWATCH REPORTED LIST`,
+                    `# OPERATION: ${opName}`,
+                    `# GENERATED: ${new Date().toISOString()}`,
+                    `# TOTAL: ${entries.length}`,
+                    `# Import in the Reporteds tab to exclude from future reports.`,
+                    `NIGHTWATCH_REPORTED_v1`,
+                    JSON.stringify({ operation: opName, generated: Date.now(), entries })
+                ].join('\n');
+            },
 
-                syncManager.saveReviews();
-                statsController.update();
-                buildReportedIndex();
-
-                if (state.view === 'predators') listController.render('predator', 'listPredators', 'predators');
-                if (state.view === 'suspects') listController.render('suspect', 'listSuspects', 'suspects');
-                if (state.view === 'cleared') listController.render('cleared', 'listCleared', 'cleared');
-                if (state.view === 'safe') listController.render('safe', 'listSafe', 'safe');
-                if (state.view === 'reporteds') reportedsController.render();
-            }
+            esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
         };
 
         // ================================================================
         // REPORTEDS CONTROLLER
-        // Same listing system as other categories, plus UID/SecUID-based
-        // import that strips users from any prior category and detects
-        // username changes on already-reported accounts.
         // ================================================================
         const reportedsController = {
-            pendingImportData: null,
+            // Stored as { uid, sec_uid, username } — persisted in IndexedDB + localStorage
+            _key: 'nw_reporteds',
+            reportedSet: new Map(), // key: uid or username → {uid, sec_uid, username}
 
-            render() {
-                listController.render('reported', 'listReporteds', 'reporteds');
-                this.renderConflicts();
-                const importSection = document.getElementById('reportedsImportSection');
-                if (importSection) importSection.style.display = (state.role === 'admin') ? 'block' : 'none';
-            },
-
-            // Find reported users whose current username differs from the
-            // username stored at the time they were reported (same UID/SecUID).
-            renderConflicts() {
-                const container = document.getElementById('reportedsConflicts');
-                const list = document.getElementById('reportedsConflictList');
-                if (!container || !list) return;
-
-                const conflicts = [];
-                for (const [uid, review] of Object.entries(state.reviews)) {
-                    if (review.status !== 'reported') continue;
-                    const liveUser = state.userMap.get(uid);
-                    const storedUsername = review.userData?.unique_id;
-                    if (liveUser && storedUsername && liveUser.unique_id && liveUser.unique_id !== storedUsername) {
-                        conflicts.push({ uid, storedUsername, currentUsername: liveUser.unique_id, nickname: liveUser.nickname });
-                    }
-                }
-
-                if (conflicts.length === 0) {
-                    container.style.display = 'none';
-                    list.innerHTML = '';
-                    return;
-                }
-
-                container.style.display = 'block';
-                list.innerHTML = conflicts.map(c => `
-                    <div class="uid-conflict-card">
-                        <div class="uid-conflict-title">UID: ${c.uid}</div>
-                        <div style="font-size:0.875rem;">
-                            <strong>${c.nickname || 'Unknown'}</strong> — reported as <span class="reported-alias-badge">@${c.storedUsername}</span>
-                            now using <span class="reported-alias-badge">@${c.currentUsername}</span>
-                        </div>
-                    </div>
-                `).join('');
-            },
-
-            // Accepts parsed JSON of shape { uid: { status, timestamp, reviewer, userData } }
-            // (same format produced by adminController.exportData / syncManager export)
-            // or a full nightwatch_all export (reviews object). Only entries with
-            // status === 'reported', OR all entries if the file is a pure reported export,
-            // are imported.
-            parseImportFile(rawText) {
-                let parsed;
+            _load() {
                 try {
-                    parsed = JSON.parse(rawText);
-                } catch (e) {
-                    throw new Error('Invalid JSON file');
-                }
-
-                // Support both a flat reviews map and a {reviews: {...}} wrapper
-                const reviewsObj = parsed.reviews ? parsed.reviews : parsed;
-                if (!reviewsObj || typeof reviewsObj !== 'object') {
-                    throw new Error('Unrecognized file structure');
-                }
-                return reviewsObj;
-            },
-
-            previewImport(reviewsObj) {
-                const entries = Object.entries(reviewsObj);
-                let toImport = 0, skipped = 0, alreadyReported = 0, willMoveFrom = {};
-
-                for (const [uid, review] of entries) {
-                    if (!review || !review.status) { skipped++; continue; }
-                    // accept reported entries directly; for other statuses, skip
-                    // (this importer is specifically for already-reported users)
-                    if (review.status !== 'reported') { skipped++; continue; }
-
-                    const existing = state.reviews[uid];
-                    if (existing?.status === 'reported') { alreadyReported++; continue; }
-                    if (existing) {
-                        willMoveFrom[existing.status] = (willMoveFrom[existing.status] || 0) + 1;
-                    }
-                    toImport++;
-                }
-
-                return { toImport, skipped, alreadyReported, willMoveFrom, total: entries.length };
-            },
-
-            commitImport(reviewsObj) {
-                let imported = 0, movedFromOther = 0;
-                const now = Date.now();
-
-                for (const [uid, review] of Object.entries(reviewsObj)) {
-                    if (!review || review.status !== 'reported') continue;
-
-                    const existing = state.reviews[uid];
-                    if (existing && existing.status !== 'reported') movedFromOther++;
-
-                    state.reviews[uid] = {
-                        status: 'reported',
-                        timestamp: review.timestamp || now,
-                        reviewer: review.reviewer || state.user,
-                        userData: {
-                            nickname: review.userData?.nickname,
-                            unique_id: review.userData?.unique_id,
-                            sec_uid: review.userData?.sec_uid
+                    const raw = localStorage.getItem(this._key);
+                    if (raw) {
+                        const arr = JSON.parse(raw);
+                        if (Array.isArray(arr)) {
+                            arr.forEach(e => {
+                                const k = e.uid || e.username;
+                                if (k) this.reportedSet.set(k, e);
+                                if (e.sec_uid) this.reportedSet.set(e.sec_uid, e);
+                            });
                         }
-                    };
-                    state.reviewedSet.add(uid);
-                    imported++;
-                }
+                    }
+                } catch(e) {}
+            },
 
-                // Also catch accounts in the live dataset whose sec_uid matches a
-                // sec_uid we just imported, even if their uid differs (defensive —
-                // normally uid is stable per TikTok account, but covers edge cases
-                // where the export only had sec_uid).
-                buildReportedIndex();
-                for (const u of (state.data?.users || [])) {
-                    if (state.reviews[u.uid]?.status === 'reported') continue;
-                    const secUid = u.sec_uid;
-                    if (secUid && state.reportedSecUidIndex.has(secUid)) {
-                        const match = state.reportedSecUidIndex.get(secUid);
+            _save() {
+                try {
+                    const arr = [];
+                    const seen = new Set();
+                    for (const e of this.reportedSet.values()) {
+                        const k = e.uid || e.username;
+                        if (seen.has(k)) continue;
+                        seen.add(k);
+                        arr.push(e);
+                    }
+                    localStorage.setItem(this._key, JSON.stringify(arr));
+                } catch(e) {}
+            },
+
+            isReported(user) {
+                if (!user) return false;
+                return this.reportedSet.has(user.uid)
+                    || this.reportedSet.has(user.secUid || user.sec_uid || '')
+                    || this.reportedSet.has(user.unique_id || '');
+            },
+
+            addEntries(entries) {
+                let added = 0;
+                for (const e of entries) {
+                    const k = e.uid || e.username;
+                    if (!k) continue;
+                    if (!this.reportedSet.has(k)) { this.reportedSet.set(k, e); added++; }
+                    if (e.sec_uid) this.reportedSet.set(e.sec_uid, e);
+                }
+                this._save();
+                this._updateBadge();
+                return added;
+            },
+
+            _updateBadge() {
+                const seen = new Set();
+                let count = 0;
+                for (const e of this.reportedSet.values()) {
+                    const k = e.uid || e.username;
+                    if (!seen.has(k)) { seen.add(k); count++; }
+                }
+                const badge = document.getElementById('badgeReporteds');
+                if (badge) badge.textContent = count;
+            },
+
+            loadFile(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const content = e.target.result;
+                    const el = document.getElementById('reportedsImportStatus');
+                    try {
+                        const lines = content.split('\n').filter(l => !l.startsWith('#'));
+                        const headerIdx = lines.findIndex(l => l.trim() === 'NIGHTWATCH_REPORTED_v1');
+                        if (headerIdx === -1) throw new Error('Not a valid reported file');
+                        const jsonLine = lines.slice(headerIdx + 1).join('');
+                        const data = JSON.parse(jsonLine);
+                        const entries = data.entries || data.uids?.map(uid => ({ uid, username: uid })) || [];
+                        const added = this.addEntries(entries);
+                        if (el) {
+                            el.style.color = 'var(--success)';
+                            el.textContent = `✅ ${added} new users marked as reported (Operation: ${data.operation || 'unknown'})`;
+                        }
+                        document.getElementById('reportedsDropZone')?.classList.add('loaded');
+                        this.renderList();
+                        // Move any reported users out of their current classification
+                        this._purgeFromReviews();
+                    } catch(err) {
+                        if (el) { el.style.color = 'var(--danger)'; el.textContent = '❌ Invalid file: ' + err.message; }
+                    }
+                };
+                reader.readAsText(file);
+            },
+
+            _purgeFromReviews() {
+                // Move reported users to 'reported' status in reviews to exclude them from other views
+                let moved = 0;
+                if (!state.data?.users) return;
+                for (const u of state.data.users) {
+                    if (this.isReported(u)) {
                         const existing = state.reviews[u.uid];
-                        if (existing && existing.status !== 'reported') movedFromOther++;
-                        state.reviews[u.uid] = {
-                            status: 'reported',
-                            timestamp: now,
-                            reviewer: match.reviewer || state.user,
-                            userData: { nickname: u.nickname, unique_id: u.unique_id, sec_uid: u.sec_uid }
-                        };
-                        state.reviewedSet.add(u.uid);
-                        imported++;
+                        if (!existing || existing.status !== 'reported') {
+                            state.reviews[u.uid] = { status: 'reported', timestamp: Date.now(), reviewer: 'system', userData: { nickname: u.nickname, unique_id: u.unique_id } };
+                            moved++;
+                        }
                     }
                 }
-
-                syncManager.saveReviews(true);
-                buildReportedIndex();
-                statsController.update();
-
-                return { imported, movedFromOther };
-            },
-
-            resetUploadUI() {
-                state.pendingReportedsFile = null;
-                const fileInfo = document.getElementById('reportedsFileInfo');
-                if (fileInfo) fileInfo.classList.remove('visible');
-                const btn = document.getElementById('btnProcessReporteds');
-                if (btn) btn.style.display = 'none';
-                const result = document.getElementById('reportedsImportResult');
-                if (result) result.style.display = 'none';
-                const input = document.getElementById('reportedsFileInput');
-                if (input) input.value = '';
-            },
-
-            handleFileSelect(file) {
-                if (!file) return;
-                state.pendingReportedsFile = file;
-                const fileInfo = document.getElementById('reportedsFileInfo');
-                const fileName = document.getElementById('reportedsFileName');
-                const fileSize = document.getElementById('reportedsFileSize');
-                if (fileName) fileName.textContent = file.name;
-                if (fileSize) fileSize.textContent = (file.size / 1024).toFixed(2) + ' KB';
-                if (fileInfo) fileInfo.classList.add('visible');
-                const btn = document.getElementById('btnProcessReporteds');
-                if (btn) btn.style.display = 'block';
-            },
-
-            async processFile() {
-                const file = state.pendingReportedsFile;
-                if (!file) return;
-                const resultEl = document.getElementById('reportedsImportResult');
-
-                try {
-                    const text = await file.text();
-                    const reviewsObj = this.parseImportFile(text);
-const preview = this.previewImport(reviewsObj);
-
-                    if (preview.toImport === 0) {
-                        resultEl.innerHTML = `<div class="error-msg visible" style="position:static;">No new "reported" entries found in this file (${preview.alreadyReported} already reported, ${preview.skipped} skipped).</div>`;
-                        resultEl.style.display = 'block';
-                        return;
-                    }
-
-                    const moveSummary = Object.entries(preview.willMoveFrom)
-                        .map(([status, count]) => `${count} from ${status}`)
-                        .join(', ');
-
-                    const confirmMsg = `Import ${preview.toImport} reported users?` +
-                        (moveSummary ? `\n\nThese will be moved out of: ${moveSummary}` : '') +
-                        (preview.alreadyReported ? `\n${preview.alreadyReported} already marked as reported will be skipped.` : '');
-
-                    if (!confirm(confirmMsg)) return;
-
-                    const result = this.commitImport(reviewsObj);
-                    resultEl.innerHTML = `<div style="background:var(--success);color:var(--text-primary);padding:0.875rem;border-radius:6px;font-size:0.875rem;">
-                        ✅ Imported ${result.imported} reported users (${result.movedFromOther} moved from other categories).
-                    </div>`;
-                    resultEl.style.display = 'block';
-
-                    this.render();
-                    this.resetUploadUI();
-                } catch (e) {
-                    resultEl.innerHTML = `<div class="error-msg visible" style="position:static;">Error: ${e.message}</div>`;
-                    resultEl.style.display = 'block';
-                }
-            }
-        };
-
-        // ================================================================
-        // REPORT GENERATOR CONTROLLER
-        // Loads resultados.json, cross-references with the site database
-        // (state.data.users) by numeric user_id, pulls comments/gifts from
-        // the same interactions structure the rest of the app uses, and
-        // builds a ZIP with one .txt per country, one combined .txt, and
-        // one .txt for unmatched-country users. Output is plain factual
-        // data only (no scrape/tool wording), in English, for authority
-        // reports.
-        // ================================================================
-        const reportGenController = {
-            loadedEntries: null,   // raw parsed resultados.json
-            matchedUsers: null,    // [{ siteUser, srcEntry }]
-            unmatchedCount: 0,
-            countryGroups: null,   // Map country -> [users]
-            noCountryGroup: null,  // [users]
-            duplicateUidGroups: null, // Map uid -> [entries] where >1 distinct username
-
-            onViewOpen() {
-                // nothing to auto-load; user picks file each time
-            },
-
-            resetUploadUI() {
-                this.loadedEntries = null;
-                this.matchedUsers = null;
-                const fileInfo = document.getElementById('reportGenFileInfo');
-                if (fileInfo) fileInfo.classList.remove('visible');
-                const preview = document.getElementById('reportGenPreviewSection');
-                if (preview) preview.style.display = 'none';
-                const input = document.getElementById('reportGenFileInput');
-                if (input) input.value = '';
-                const log = document.getElementById('reportProgressLog');
-                if (log) { log.innerHTML = ''; log.classList.remove('visible'); }
-            },
-
-            log(msg) {
-                const log = document.getElementById('reportProgressLog');
-                if (!log) return;
-                log.classList.add('visible');
-                const line = document.createElement('div');
-                line.textContent = msg;
-                log.appendChild(line);
-                log.scrollTop = log.scrollHeight;
-            },
-
-            async handleFileSelect(file) {
-                if (!file) return;
-                const fileInfo = document.getElementById('reportGenFileInfo');
-                const fileName = document.getElementById('reportGenFileName');
-                const fileSize = document.getElementById('reportGenFileSize');
-                if (fileName) fileName.textContent = file.name;
-                if (fileSize) fileSize.textContent = (file.size / 1024).toFixed(2) + ' KB';
-                if (fileInfo) fileInfo.classList.add('visible');
-
-                try {
-                    const text = await file.text();
-                    const parsed = JSON.parse(text);
-                    if (!Array.isArray(parsed)) throw new Error('Expected a JSON array of users');
-                    this.loadedEntries = parsed;
-                    this.crossReference();
-                } catch (e) {
-                    alert('Error reading file: ' + e.message);
-                    this.resetUploadUI();
+                if (moved > 0) {
+                    syncManager.saveReviews();
+                    statsController.update();
                 }
             },
 
-            // Extracts a normalized uid (TikTok numeric user_id) from a
-            // resultados.json entry, tolerant of slightly different shapes.
-            extractEntryUid(entry) {
-                return entry?.account?.user_id || entry?.user_id || entry?.uid || null;
-            },
-
-            extractEntrySecUid(entry) {
-                return entry?.account?.sec_uid || entry?.sec_uid || null;
-            },
-
-            crossReference() {
-                if (!state.userMap || state.userMap.size === 0) buildUserMap();
-
-                const matched = [];
-                let noMatch = 0;
-                const uidToUsernames = new Map(); // uid -> Set(usernames seen in resultados.json)
-
-                for (const entry of this.loadedEntries) {
-                    const entryUid = this.extractEntryUid(entry);
-                    const entrySecUid = this.extractEntrySecUid(entry);
-                    let siteUser = null;
-
-                    if (entryUid && state.userMap.has(entryUid)) {
-                        siteUser = state.userMap.get(entryUid);
-                    } else if (entrySecUid && state.secUidMap.has(entrySecUid)) {
-                        const uidFromSec = state.secUidMap.get(entrySecUid);
-                        siteUser = state.userMap.get(uidFromSec);
-                    }
-
-                    if (!siteUser) { noMatch++; continue; }
-
-                    const username = entry.username || entry.profile?.handle?.replace(/^@/, '') || siteUser.unique_id;
-                    if (entryUid) {
-                        if (!uidToUsernames.has(entryUid)) uidToUsernames.set(entryUid, new Set());
-                        uidToUsernames.get(entryUid).add(username);
-                    }
-
-                    matched.push({ entry, siteUser });
+            renderList() {
+                const container = document.getElementById('listReporteds');
+                if (!container) return;
+                const seen = new Set();
+                const entries = [];
+                for (const e of this.reportedSet.values()) {
+                    const k = e.uid || e.username;
+                    if (!seen.has(k)) { seen.add(k); entries.push(e); }
                 }
-
-                // Find uids with more than one distinct username -> alt accounts to merge
-                const dupeGroups = new Map();
-                for (const [uid, usernames] of uidToUsernames.entries()) {
-                    if (usernames.size > 1) dupeGroups.set(uid, Array.from(usernames));
-                }
-
-                this.matchedUsers = matched;
-                this.unmatchedCount = noMatch;
-                this.duplicateUidGroups = dupeGroups;
-
-                this.buildCountryGroups();
-                this.renderPreview();
-            },
-
-            buildCountryGroups() {
-                const groups = new Map();
-                const noCountry = [];
-
-                // Deduplicate by uid first — same uid with multiple usernames
-                // becomes a single merged entry (most recent username wins,
-                // all known usernames listed).
-                const byUid = new Map();
-                for (const { entry, siteUser } of this.matchedUsers) {
-                    const uid = this.extractEntryUid(entry) || siteUser.uid;
-                    if (!byUid.has(uid)) {
-                        byUid.set(uid, { entry, siteUser, allUsernames: new Set() });
-                    }
-                    const rec = byUid.get(uid);
-                    const uname = entry.username || siteUser.unique_id;
-                    if (uname) rec.allUsernames.add(uname);
-                    // keep the entry with most fields / most recent scraped_at
-                    if (!rec.entry.scraped_at || (entry.scraped_at && entry.scraped_at > rec.entry.scraped_at)) {
-                        rec.entry = entry;
-                    }
-                }
-
-                for (const rec of byUid.values()) {
-                    const country = rec.entry.profile?.country;
-                    const record = this.buildUserRecord(rec);
-                    if (country && country.trim() && country.trim().toLowerCase() !== 'unknown') {
-                        const key = country.trim();
-                        if (!groups.has(key)) groups.set(key, []);
-                        groups.get(key).push(record);
-                    } else {
-                        noCountry.push(record);
-                    }
-                }
-
-                // Sort each group: most gifts first, then most comments, descending
-                const sortFn = (a, b) => {
-                    if (b.totalGifts !== a.totalGifts) return b.totalGifts - a.totalGifts;
-                    return b.totalComments - a.totalComments;
-                };
-                for (const arr of groups.values()) arr.sort(sortFn);
-                noCountry.sort(sortFn);
-
-                this.countryGroups = groups;
-                this.noCountryGroup = noCountry;
-            },
-
-            // Builds the normalized record used for text generation
-            buildUserRecord({ entry, siteUser, allUsernames }) {
-                const uid = this.extractEntryUid(entry) || siteUser.uid;
-                const secUid = this.extractEntrySecUid(entry) || siteUser.sec_uid || '';
-                const username = entry.username || siteUser.unique_id || '';
-                const name = entry.profile?.display_name || siteUser.nickname || '';
-                const createdAt = entry.account?.account_created || '';
-                const country = entry.profile?.country || '';
-                const language = entry.profile?.language || '';
-                const usernameHistory = allUsernames ? Array.from(allUsernames).filter(u => u && u !== username) : [];
-
-                const ix = siteUser.interactions || {};
-                const comments = ix.comments || [];
-                const gifts = ix.gifts || [];
-
-                const totalComments = siteUser.stats?.total_comments ?? comments.reduce((a, c) => a + (c.count || 1), 0);
-                const totalGiftDiamonds = gifts.reduce((a, g) => a + (g.diamonds || 0) * (g.count || 1), 0);
-                const totalGiftCount = siteUser.stats?.total_gifts ?? gifts.reduce((a, g) => a + (g.count || 1), 0);
-
-                return {
-                    uid, secUid, username, name, createdAt, country, language,
-                    usernameHistory, comments, gifts,
-                    totalComments, totalGiftCount, totalGiftDiamonds
-                };
-            },
-
-            renderPreview() {
-                const total = this.loadedEntries.length;
-                const matched = this.matchedUsers.length;
-                const noCountryCount = this.noCountryGroup.length;
-
-                document.getElementById('rgTotal').textContent = total;
-                document.getElementById('rgMatched').textContent = matched;
-                document.getElementById('rgNoCountry').textContent = noCountryCount;
-
-                const preview = document.getElementById('rgCountryPreview');
-                const sortedCountries = Array.from(this.countryGroups.entries()).sort((a, b) => b[1].length - a[1].length);
-                preview.innerHTML = sortedCountries.map(([country, users]) =>
-                    `<div class="report-country-chip"><span>${this.escapeHtml(country)}</span><span>${users.length}</span></div>`
-                ).join('');
-
-                const dupeAlert = document.getElementById('rgDupeAlert');
-                if (this.duplicateUidGroups.size > 0) {
-                    const lines = Array.from(this.duplicateUidGroups.entries())
-                        .map(([uid, usernames]) => `UID ${uid}: ${usernames.join(', ')}`)
-                        .join('<br>');
-                    dupeAlert.innerHTML = `Merged ${this.duplicateUidGroups.size} account(s) reported under multiple usernames (same UID):<br>${lines}`;
-                    dupeAlert.style.display = 'block';
-                } else {
-                    dupeAlert.style.display = 'none';
-                }
-
-                document.getElementById('reportGenPreviewSection').style.display = 'block';
-            },
-
-            escapeHtml(text) {
-                if (!text) return '';
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            },
-
-            // ---- Text file generation ----
-
-            formatUserBlock(record, index) {
-                const num = String(index).padStart(3, '0');
-                const lines = [];
-                lines.push(`[${num}]`);
-                lines.push(`Username: ${record.username}`);
-                if (record.usernameHistory.length > 0) {
-                    lines.push(`Previous usernames: ${record.usernameHistory.join(', ')}`);
-                }
-                lines.push(`Name: ${record.name || 'N/A'}`);
-                lines.push(`Account created: ${record.createdAt || 'N/A'}`);
-                lines.push(`Country: ${record.country || 'N/A'}`);
-                lines.push(`Language: ${record.language || 'N/A'}`);
-                lines.push('');
-                lines.push(`UID: ${record.uid}`);
-                lines.push(`SecUID: ${record.secUid || 'N/A'}`);
-                lines.push('');
-
-                if (record.comments.length > 0) {
-                    lines.push(`Comments (${record.totalComments} total):`);
-                    for (const c of record.comments) {
-                        const first = c.first_at ? new Date(c.first_at).toISOString() : 'N/A';
-                        const last = c.last_at ? new Date(c.last_at).toISOString() : 'N/A';
-                        lines.push(`  x${c.count || 1} "${(c.text || '').replace(/\s+/g, ' ').trim()}" (first: ${first}, last: ${last})`);
-                    }
-                } else {
-                    lines.push('Comments: none recorded');
-                }
-
-                lines.push('');
-
-                if (record.gifts.length > 0) {
-                    const merged = new Map();
-                    for (const g of record.gifts) {
-                        const key = g.name || 'Unknown gift';
-                        if (!merged.has(key)) merged.set(key, { count: 0, diamonds: g.diamonds || 0 });
-                        merged.get(key).count += (g.count || 1);
-                    }
-                    lines.push(`Gifts (${record.totalGiftCount} total, ${record.totalGiftDiamonds} diamonds):`);
-                    for (const [name, info] of merged.entries()) {
-                        lines.push(`  x${info.count} ${name} (${info.diamonds} diamonds each)`);
-                    }
-                } else {
-                    lines.push('Gifts: none recorded');
-                }
-
-                lines.push('');
-                lines.push('-'.repeat(40));
-                lines.push('');
-                return lines.join('\n');
-            },
-
-            buildSectionText(records, sectionLabel) {
-                const parts = [`=== ${sectionLabel} (${records.length} accounts) ===`, ''];
-                records.forEach((r, i) => parts.push(this.formatUserBlock(r, i)));
-                return parts.join('\n');
-            },
-
-            async loadJSZip() {
-                if (window.JSZip) return window.JSZip;
-                await new Promise((resolve, reject) => {
-                    const script = document.createElement('script');
-                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-                    script.onload = resolve;
-                    script.onerror = () => reject(new Error('Failed to load ZIP library'));
-                    document.head.appendChild(script);
-                });
-                return window.JSZip;
-            },
-
-            async generate() {
-                if (!this.countryGroups) return;
-                const btn = document.getElementById('btnGenerateReport');
-                if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating...'; }
-
-                try {
-                    this.log('Loading ZIP library...');
-                    const JSZip = await this.loadJSZip();
-                    const zip = new JSZip();
-
-                    this.log('Building per-country files...');
-                    const allRecords = [];
-                    const sortedCountries = Array.from(this.countryGroups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-
-                    for (const [country, records] of sortedCountries) {
-                        const safeName = country.replace(/[^a-zA-Z0-9 _-]/g, '').replace(/\s+/g, '_');
-                        const text = this.buildSectionText(records, country);
-                        zip.file(`${safeName}.txt`, text);
-                        allRecords.push(...records);
-                        this.log(`  ${country}: ${records.length} accounts`);
-                    }
-
-                    if (this.noCountryGroup.length > 0) {
-                        this.log('Building unknown-country file...');
-                        const text = this.buildSectionText(this.noCountryGroup, 'Unknown Country');
-                        zip.file('Unknown_Country.txt', text);
-                        allRecords.push(...this.noCountryGroup);
-                    }
-
-                    this.log('Building combined file...');
-                    const combinedSorted = [...allRecords].sort((a, b) => {
-                        if (b.totalGiftCount !== a.totalGiftCount) return b.totalGiftCount - a.totalGiftCount;
-                        return b.totalComments - a.totalComments;
-                    });
-                    const combinedText = this.buildSectionText(combinedSorted, 'All Accounts');
-                    zip.file('All_Accounts.txt', combinedText);
-
-                    this.log('Packaging ZIP...');
-                    const blob = await zip.generateAsync({ type: 'blob' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `report_${Date.now()}.zip`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    setTimeout(() => URL.revokeObjectURL(url), 2000);
-
-                    this.log(`Done. ${allRecords.length} accounts across ${sortedCountries.length} countries + unknown.`);
-                } catch (e) {
-                    this.log('Error: ' + e.message);
-                    alert('Error generating report: ' + e.message);
-                } finally {
-                    if (btn) { btn.disabled = false; btn.textContent = '⬇ Generate ZIP Report'; }
-                }
-            }
-        };
-
-        const commentSearchController = {
-            open() {
-                if (state.role !== 'admin') return;
-                document.getElementById('commentSearchResults').innerHTML = '';
-                document.getElementById('commentSearchInput').value = '';
-                document.getElementById('commentSearchModal').classList.add('active');
-                setTimeout(() => document.getElementById('commentSearchInput').focus(), 80);
-            },
-            close() {
-                document.getElementById('commentSearchModal').classList.remove('active');
-            },
-            fuzzyScore(text, query) {
-                const t = text.toLowerCase();
-                const q = query.toLowerCase();
-                if (t.includes(q)) return 2;
-                // bigram similarity
-                const bigrams = s => { const b = new Set(); for (let i = 0; i < s.length - 1; i++) b.add(s[i] + s[i+1]); return b; };
-                const tb = bigrams(t), qb = bigrams(q);
-                if (qb.size === 0) return 0;
-                let hits = 0;
-                qb.forEach(g => { if (tb.has(g)) hits++; });
-                return hits / qb.size;
-            },
-            run() {
-                const query = (document.getElementById('commentSearchInput').value || '').trim();
-                const resultsEl = document.getElementById('commentSearchResults');
-                if (!query || !state.data?.users) {
-                    resultsEl.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">enter a term first</div>';
+                this._updateBadge();
+                if (!entries.length) {
+                    container.innerHTML = '<div class="empty-state"><div class="empty-title">No Reported Users</div><div class="empty-text">Import a *_REPORTED.txt file to populate this list</div></div>';
                     return;
                 }
-                resultsEl.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">searching...</div>';
-                const threshold = 0.3;
-                const results = [];
-                // use requestIdleCallback for non-blocking
-                const users = state.data.users;
-                let i = 0;
-                const chunk = () => {
-                    const end = Math.min(i + 300, users.length);
-                    for (; i < end; i++) {
-                        const user = users[i];
-                        const comments = user.interactions?.comments || [];
-                        comments.forEach(c => {
-                            const score = this.fuzzyScore(c.text || '', query);
-                            if (score >= threshold) {
-                                results.push({ user, comment: c, score });
-                            }
-                        });
-                    }
-                    if (i < users.length) {
-                        setTimeout(chunk, 0);
-                    } else {
-                        results.sort((a, b) => b.score - a.score);
-                        this.render(results.slice(0, 80), query, resultsEl);
-                    }
-                };
-                setTimeout(chunk, 0);
-            },
-            highlight(text, query) {
-                const idx = text.toLowerCase().indexOf(query.toLowerCase());
-                if (idx === -1) return this.esc(text);
-                return this.esc(text.slice(0, idx)) +
-                    '<mark style="background:#3a5a2a;color:#ccc;border-radius:2px;">' +
-                    this.esc(text.slice(idx, idx + query.length)) +
-                    '</mark>' +
-                    this.esc(text.slice(idx + query.length));
-            },
-            esc(s) {
-                return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-            },
-            render(results, query, el) {
-                if (!results.length) {
-                    el.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">no matches</div>';
-                    return;
-                }
-                el.innerHTML = results.map(r => `
-                    <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:4px;padding:0.5rem 0.75rem;cursor:pointer;font-size:0.82rem;"
-                         onclick="commentSearchController.close();reviewController.loadUser('${r.user.uid}');ui.switchView('review');">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;">
-                            <span style="color:var(--text-secondary);">@${this.esc(r.user.unique_id||'?')} — ${this.esc(r.user.nickname||'')}</span>
-                            <span style="color:var(--text-muted);font-size:0.72rem;">x${r.comment.count}</span>
+                container.innerHTML = entries.map(e => {
+                    const user = state.data?.users?.find(u => u.uid === e.uid || u.unique_id === e.username);
+                    const name = user?.nickname || e.username || e.uid;
+                    const handle = user?.unique_id || e.username || '';
+                    return `<div class="user-card" style="cursor:default;">
+                        <div class="user-card-avatar">${user?.profile_picture ? `<img src="${user.profile_picture}" alt="" loading="lazy">` : ''}</div>
+                        <div class="user-card-info">
+                            <div class="user-card-name">${name}</div>
+                            <div class="user-card-username">@${handle}</div>
+                            <div class="user-card-stats" style="font-size:0.68rem;">
+                                ${e.uid ? `<span>UID: ${e.uid}</span>` : ''}
+                                ${e.sec_uid ? `<span style="overflow:hidden;text-overflow:ellipsis;max-width:180px;white-space:nowrap;">SEC: ${e.sec_uid.substring(0,18)}…</span>` : ''}
+                            </div>
                         </div>
-                        <div style="color:var(--text-primary);">${this.highlight(r.comment.text||'', query)}</div>
-                    </div>
-                `).join('');
-                const countEl = document.createElement('div');
-                countEl.style.cssText = 'color:var(--text-muted);font-size:0.72rem;margin-bottom:0.25rem;';
-                countEl.textContent = `${results.length} result${results.length !== 1 ? 's' : ''}${results.length === 80 ? ' (capped at 80)' : ''}`;
-                el.prepend(countEl);
+                        <div class="user-card-status" style="background:var(--danger);color:#fff;">REPORTED</div>
+                    </div>`;
+                }).join('');
             }
         };
 
-        const autoClearController = {
-            running: false,
-            stopped: false,
+        window.intelPanel = intelPanel;
+        window.reportedsController = reportedsController;
 
-            isEmptyProfile(user) {
-                const joins    = user.stats?.total_joins    || 0;
-                const comments = user.stats?.total_comments || 0;
-                const gifts    = user.stats?.total_gifts    || 0;
-                const likes    = user.stats?.total_likes    || 0;
-                return joins <= 3 && comments === 0 && gifts === 0 && likes === 0;
-            },
+        document.addEventListener('DOMContentLoaded', () => {
+            reportedsController._load();
+            reportedsController._updateBadge();
 
-            hasNewActivity(user) {
-                const joins    = user.stats?.total_joins    || 0;
-                const comments = user.stats?.total_comments || 0;
-                const gifts    = user.stats?.total_gifts    || 0;
-                const likes    = user.stats?.total_likes    || 0;
-                return joins > 3 || comments > 0 || gifts > 0 || likes > 0;
-            },
+            // Intel drop zone (.enc files)
+            const intelDz = document.getElementById('intelDropZone');
+            const intelFi = document.getElementById('intelFileInput');
+            if (intelDz && intelFi) {
+                intelDz.addEventListener('click', () => intelFi.click());
+                intelDz.addEventListener('dragover', e => { e.preventDefault(); intelDz.classList.add('dragover'); });
+                intelDz.addEventListener('dragleave', () => intelDz.classList.remove('dragover'));
+                intelDz.addEventListener('drop', e => { e.preventDefault(); intelDz.classList.remove('dragover'); if (e.dataTransfer.files.length) intelPanel.loadFiles([...e.dataTransfer.files]); });
+                intelFi.addEventListener('change', e => { if (e.target.files.length) intelPanel.loadFiles([...e.target.files]); e.target.value=''; });
+            }
 
-            getClearCandidates() {
-                if (!state.data?.users) return [];
-                return state.data.users.filter(u => {
-                    if (CONFIG.BLOCKED_USERS?.includes(u.unique_id)) return false;
-                    const review = state.reviews[u.uid];
-                    if (review?.status === 'predator' || review?.status === 'suspect') return false;
-                    if (review) return false;
-                    return this.isEmptyProfile(u);
-                });
-            },
+            // "Load from current dataset" button
+            const btnLoadCurrent = document.getElementById('intelLoadCurrent');
+            if (btnLoadCurrent) btnLoadCurrent.addEventListener('click', () => intelPanel.loadFromCurrentData());
 
-            getRequeueCandidates() {
-                if (!state.data?.users) return [];
-                return state.data.users.filter(u => {
-                    if (CONFIG.BLOCKED_USERS?.includes(u.unique_id)) return false;
-                    const review = state.reviews[u.uid];
-                    if (!review || review.status !== 'cleared') return false;
-                    return this.hasNewActivity(u);
-                });
-            },
+            // Reporteds drop zone
+            const repDz = document.getElementById('reportedsDropZone');
+            const repFi = document.getElementById('reportedsFileInput');
+            if (repDz && repFi) {
+                repDz.addEventListener('click', () => repFi.click());
+                repDz.addEventListener('dragover', e => { e.preventDefault(); repDz.classList.add('dragover'); });
+                repDz.addEventListener('dragleave', () => repDz.classList.remove('dragover'));
+                repDz.addEventListener('drop', e => { e.preventDefault(); repDz.classList.remove('dragover'); if (e.dataTransfer.files.length) reportedsController.loadFile(e.dataTransfer.files[0]); });
+                repFi.addEventListener('change', e => { if (e.target.files.length) reportedsController.loadFile(e.target.files[0]); });
+            }
 
-            openModal() {
-                if (state.role !== 'admin') return;
+            // Comment filter
+            const cf = document.getElementById('intelCommentFilter');
+            if (cf) cf.addEventListener('input', e => intelPanel.renderComments(e.target.value));
 
-                const clearList   = this.getClearCandidates();
-                const requeueList = this.getRequeueCandidates();
-                const total       = clearList.length + requeueList.length;
-
-                const statusEl    = document.getElementById('autoClearStatus');
-                const countEl     = document.getElementById('autoClearCount');
-                const clearedEl   = document.getElementById('autoClearCleared');
-                const requeuedEl  = document.getElementById('autoClearRequeued');
-                const barEl       = document.getElementById('autoClearProgressBar');
-                const confirmBtn  = document.getElementById('autoClearConfirmBtn');
-                const stopBtn     = document.getElementById('autoClearStopBtn');
-
-                if (statusEl)    statusEl.textContent  = `Ready: ${clearList.length} to clear · ${requeueList.length} to re-queue for review.`;
-                if (countEl)     countEl.textContent   = `0 / ${total} processed`;
-                if (clearedEl)   clearedEl.textContent = `0 cleared`;
-                if (requeuedEl)  requeuedEl.textContent = `0 sent back to review`;
-                if (barEl)       barEl.style.width     = '0%';
-                if (confirmBtn)  { confirmBtn.style.display = ''; confirmBtn.disabled = false; confirmBtn.textContent = 'Start'; }
-                if (stopBtn)     stopBtn.style.display = 'none';
-
-                this.running = false;
-                this.stopped = false;
-
-                document.getElementById('autoClearModal').classList.add('active');
-            },
-
-            async run() {
-                if (this.running) return;
-                this.running = true;
-                this.stopped = false;
-
-                const clearList   = this.getClearCandidates();
-                const requeueList = this.getRequeueCandidates();
-                const total       = clearList.length + requeueList.length;
-
-                const statusEl   = document.getElementById('autoClearStatus');
-                const countEl    = document.getElementById('autoClearCount');
-                const clearedEl  = document.getElementById('autoClearCleared');
-                const requeuedEl = document.getElementById('autoClearRequeued');
-                const barEl      = document.getElementById('autoClearProgressBar');
-                const confirmBtn = document.getElementById('autoClearConfirmBtn');
-                const stopBtn    = document.getElementById('autoClearStopBtn');
-
-                if (confirmBtn) confirmBtn.style.display = 'none';
-                if (stopBtn)    stopBtn.style.display = '';
-
-                let processed = 0;
-                let cleared   = 0;
-                let requeued  = 0;
-
-                const yieldToUI = typeof scheduler !== 'undefined' && scheduler.yield
-                    ? () => scheduler.yield()
-                    : () => new Promise(r => setTimeout(r, 0));
-
-                const updateUI = (currentUser) => {
-                    const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
-                    if (barEl)      barEl.style.width      = pct + '%';
-                    if (countEl)    countEl.textContent    = `${processed} / ${total} processed`;
-                    if (clearedEl)  clearedEl.textContent  = `${cleared} cleared`;
-                    if (requeuedEl) requeuedEl.textContent = `${requeued} sent back to review`;
-                    if (statusEl && currentUser) {
-                        statusEl.textContent = `Processing... (@${currentUser.unique_id || currentUser.nickname || currentUser.uid})`;
-                    }
-                };
-
-                if (statusEl) statusEl.textContent = 'Pass 1/2 — Clearing empty profiles...';
-
-                for (const user of clearList) {
-                    if (this.stopped) break;
-
-                    const existing = state.reviews[user.uid]?.status;
-                    if (existing === 'predator' || existing === 'suspect') { processed++; continue; }
-
-                    state.reviews[user.uid] = {
-                        status:    'cleared',
-                        timestamp: Date.now(),
-                        reviewer:  state.user + ' [auto]',
-                        userData:  { nickname: user.nickname, unique_id: user.unique_id }
-                    };
-                    state.reviewedSet.add(user.uid);
-
-                    cleared++;
-                    processed++;
-
-                    if (processed % 50 === 0 || processed === total) updateUI(user);
-                    if (processed % 100 === 0) await yieldToUI();
+            // Admin panel intel button
+            const btnIntel = document.getElementById('btnIntelPanel');
+            if (btnIntel) btnIntel.addEventListener('click', () => ui.switchView('intelligence'));
+        });
+        // ================================================================
+        // FIM INTELLIGENCE PANEL
+        // ================================================================
+    </script>
+</body>
+                    statsController.update();
                 }
+            },
 
-                if (!this.stopped && statusEl) statusEl.textContent = 'Pass 2/2 — Checking previously cleared profiles...';
+            renderList() {
+                const container = document.getElementById('listReporteds');
+                if (!container) return;
+                const seen = new Set();
+                const entries = [];
+                for (const e of this.reportedSet.values()) {
+                    const k = e.uid || e.username;
+                    if (!seen.has(k)) { seen.add(k); entries.push(e); }
+                }
+                this._updateBadge();
+                if (!entries.length) {
+                    container.innerHTML = '<div class="empty-state"><div class="empty-title">No Reported Users</div><div class="empty-text">Import a *_REPORTED.txt file to populate this list</div></div>';
+                    return;
+                }
+                container.innerHTML = entries.map(e => {
+                    const user = state.data?.users?.find(u => u.uid === e.uid || u.unique_id === e.username);
+                    const name = user?.nickname || e.username || e.uid;
+                    const handle = user?.unique_id || e.username || '';
+                    return `<div class="user-card" style="cursor:default;">
+                        <div class="user-card-avatar">${user?.profile_picture ? `<img src="${user.profile_picture}" alt="" loading="lazy">` : ''}</div>
+                        <div class="user-card-info">
+                            <div class="user-card-name">${name}</div>
+                            <div class="user-card-username">@${handle}</div>
+                            <div class="user-card-stats" style="font-size:0.68rem;">
+                                ${e.uid ? `<span>UID: ${e.uid}</span>` : ''}
+                                ${e.sec_uid ? `<span style="overflow:hidden;text-overflow:ellipsis;max-width:180px;white-space:nowrap;">SEC: ${e.sec_uid.substring(0,18)}…</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="user-card-status" style="background:var(--danger);color:#fff;">REPORTED</div>
+                    </div>`;
+                }).join('');
+            }
+        };
 
-                for (const user of requeueList) {
-                    if (this.stopped) break;
+        window.intelPanel = intelPanel;
+        window.reportedsController = reportedsController;
 
-                    const review = state.reviews[user.uid];
-                    if (!review || review.status !== 'cleared') {
+        // Wire up Intelligence Panel after DOM ready
+        document.addEventListener('DOMContentLoaded', () => {
+            // Init reporteds from localStorage
+            reportedsController._load();
+            reportedsController._updateBadge();
+
+            // Intel file drop zone (now accepts .enc and .json)
+            const intelDz = document.getElementById('intelDropZone');
+            const intelFi = document.getElementById('intelFileInput');
+            if (intelDz && intelFi) {
+                intelDz.addEventListener('click', () => intelFi.click());
+                intelDz.addEventListener('dragover', e => { e.preventDefault(); intelDz.classList.add('dragover'); });
+                intelDz.addEventListener('dragleave', () => intelDz.classList.remove('dragover'));
+                intelDz.addEventListener('drop', e => { e.preventDefault(); intelDz.classList.remove('dragover'); if (e.dataTransfer.files.length) intelPanel.loadFiles([...e.dataTransfer.files]); });
+                intelFi.addEventListener('change', e => { if (e.target.files.length) intelPanel.loadFiles([...e.target.files]); });
+            }
+
+            // Suppression drop zone
+            const suppDz = document.getElementById('suppressDropZone');
+            const suppFi = document.getElementById('suppressFileInput');
+            if (suppDz && suppFi) {
+                suppDz.addEventListener('click', () => suppFi.click());
+                suppDz.addEventListener('dragover', e => { e.preventDefault(); suppDz.classList.add('dragover'); });
+                suppDz.addEventListener('dragleave', () => suppDz.classList.remove('dragover'));
+                suppDz.addEventListener('drop', e => { e.preventDefault(); suppDz.classList.remove('dragover'); if (e.dataTransfer.files.length) intelPanel.loadSuppression(e.dataTransfer.files[0]); });
+                suppFi.addEventListener('change', e => { if (e.target.files.length) intelPanel.loadSuppression(e.target.files[0]); });
+            }
+
+            // Reporteds drop zone
+            const repDz = document.getElementById('reportedsDropZone');
+            const repFi = document.getElementById('reportedsFileInput');
+            if (repDz && repFi) {
+                repDz.addEventListener('click', () => repFi.click());
+                repDz.addEventListener('dragover', e => { e.preventDefault(); repDz.classList.add('dragover'); });
+                repDz.addEventListener('dragleave', () => repDz.classList.remove('dragover'));
+                repDz.addEventListener('drop', e => { e.preventDefault(); repDz.classList.remove('dragover'); if (e.dataTransfer.files.length) reportedsController.loadFile(e.dataTransfer.files[0]); });
+                repFi.addEventListener('change', e => { if (e.target.files.length) reportedsController.loadFile(e.target.files[0]); });
+            }
+
+            // Comment filter
+            const cf = document.getElementById('intelCommentFilter');
+            if (cf) cf.addEventListener('input', e => intelPanel.renderComments(e.target.value));
+
+            // Admin panel intel button
+            const btnIntel = document.getElementById('btnIntelPanel');
+            if (btnIntel) btnIntel.addEventListener('click', () => ui.switchView('intelligence'));
+
+            const btnSuppress = document.getElementById('btnUploadSuppression');
+            if (btnSuppress) btnSuppress.addEventListener('click', () => ui.switchView('intelligence'));
+        });
+        // ================================================================
+        // FIM INTELLIGENCE PANEL
+        // ================================================================
+    </script>
+</body>
+</html>                if (!review || review.status !== 'cleared') {
                         processed++;
                         continue;
                     }
@@ -5747,11 +5559,11 @@ const preview = this.previewImport(reviewsObj);
                 state.role = role;
                 
                 const loginScreen = document.getElementById('loginScreen');
-                const app = document.getElementById('app');
+                const appEl = document.getElementById('appContainer');
                 const roleBadge = document.getElementById('userRoleBadge');
                 
                 if (loginScreen) loginScreen.classList.remove('active');
-                if (app) app.classList.add('visible');
+                if (appEl) appEl.classList.add('visible');
                 if (roleBadge) {
                     roleBadge.textContent = role.toUpperCase();
                     roleBadge.className = `role-badge role-${role}`;
@@ -6796,4 +6608,4 @@ const preview = this.previewImport(reviewsObj);
         // ================================================================
     </script>
 </body>
-</html>
+
