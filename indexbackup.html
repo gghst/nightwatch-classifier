@@ -1,0 +1,2609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NightWatch | Predator Classification System</title>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, push, onValue, off, set, get, remove, onDisconnect, serverTimestamp, update, query, limitToLast } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        
+        const firebaseConfig = {
+            apiKey: "AIzaSyDpgJqdLKPOVLpW2JvGGmGm-go5nPuGci4",
+            authDomain: "nightwatch-chat.firebaseapp.com",
+            databaseURL: "https://nightwatch-chat-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "nightwatch-chat",
+            messagingSenderId: "365421327175",
+            appId: "1:365421327175:web:8c74298684c784752e5262"
+        };
+        
+        const app = initializeApp(firebaseConfig);
+        window.db = getDatabase(app);
+        window.firebaseRefs = { ref, push, onValue, off, set, get, remove, onDisconnect, serverTimestamp, update, query, limitToLast };
+    </script>
+    
+    <style>
+        :root {
+            --bg-primary: #0d0d0d;
+            --bg-secondary: #141414;
+            --bg-tertiary: #1a1a1a;
+            --bg-elevated: #222;
+            --accent: #3a3a3a;
+            --accent-hover: #4a4a4a;
+            --danger: #8b3a3a;
+            --danger-hover: #a04545;
+            --warning: #8b6b3a;
+            --warning-hover: #a08045;
+            --success: #3a6b3a;
+            --success-hover: #458045;
+            --info: #3a5a8b;
+            --info-hover: #456aa0;
+            --text-primary: #e0e0e0;
+            --text-secondary: #888;
+            --text-muted: #555;
+            --border: #2a2a2a;
+            --chat-bg: #0a0a0a;
+            --chat-bubble-user: #1a3a1a;
+            --chat-bubble-other: #1a1a2e;
+            --admin-glow: #ff0000;
+            --admin-rgb-1: #ff0000;
+            --admin-rgb-2: #ff8800;
+            --admin-rgb-3: #ffff00;
+            --admin-rgb-4: #00ff00;
+            --admin-rgb-5: #00ffff;
+            --admin-rgb-6: #0000ff;
+            --admin-rgb-7: #ff00ff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .login-screen {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-primary);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .login-screen.active { display: flex; }
+
+        .login-box {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 3rem;
+            width: 90%;
+            max-width: 420px;
+        }
+
+        .login-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .login-subtitle {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-bottom: 2rem;
+        }
+
+        .input-group { margin-bottom: 1.25rem; }
+
+        .input-label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: var(--accent-hover);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.875rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9375rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: var(--text-primary);
+        }
+
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-info {
+            background: var(--info);
+            color: var(--text-primary);
+        }
+
+        .btn-info:hover { background: var(--info-hover); }
+
+        .error-msg {
+            background: var(--danger);
+            color: var(--text-primary);
+            padding: 0.875rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .error-msg.visible { display: block; }
+
+        .security-info {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .app { display: none; min-height: 100vh; }
+        .app.visible { display: block; }
+
+        .app-header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .app-title { font-size: 1.125rem; font-weight: 600; }
+        .header-spacer { flex: 1; }
+
+        .session-info {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-family: monospace;
+            padding: 0.375rem 0.75rem;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+
+        .enc-badge {
+            font-size: 0.75rem;
+            color: var(--success);
+            padding: 0.375rem 0.75rem;
+            background: rgba(58, 107, 58, 0.15);
+            border: 1px solid var(--success);
+            border-radius: 4px;
+        }
+
+        .role-badge {
+            padding: 0.375rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .role-admin {
+            background: rgba(58, 58, 58, 0.3);
+            border: 1px solid var(--accent);
+        }
+
+        .role-reviewer {
+            background: rgba(139, 107, 58, 0.15);
+            border: 1px solid var(--warning);
+            color: var(--text-secondary);
+        }
+
+        .logout-btn {
+            padding: 0.5rem 1rem;
+            background: transparent;
+            border: 1px solid var(--danger);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            cursor: pointer;
+        }
+
+        .logout-btn:hover { background: var(--danger); color: var(--text-primary); }
+
+        .app-body { display: flex; min-height: calc(100vh - 61px); }
+
+        .sidebar {
+            width: 260px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .nav-section { padding: 1.5rem 0; }
+
+        .nav-section-title {
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            padding: 0 1.25rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .nav-btn {
+            width: 100%;
+            padding: 0.75rem 1.25rem;
+            background: transparent;
+            border: none;
+            border-left: 2px solid transparent;
+            color: var(--text-secondary);
+            font-size: 0.9375rem;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .nav-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .nav-btn.active { background: var(--bg-tertiary); border-left-color: var(--text-secondary); color: var(--text-primary); }
+
+        .nav-badge {
+            padding: 0.125rem 0.5rem;
+            background: var(--bg-elevated);
+            border-radius: 10px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        .main-content { flex: 1; padding: 2rem; overflow-y: auto; }
+
+        .view { display: none; max-width: 1200px; }
+        .view.active { display: block; animation: fadeIn 0.2s; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .view-header { margin-bottom: 2rem; }
+        .view-title { font-size: 1.75rem; font-weight: 600; margin-bottom: 0.5rem; }
+        .view-subtitle { color: var(--text-secondary); font-size: 0.9375rem; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value { font-size: 2rem; font-weight: 600; margin-bottom: 0.25rem; }
+        .stat-subtitle { font-size: 0.8125rem; color: var(--text-muted); }
+
+        .progress-section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .progress-title { font-size: 0.9375rem; font-weight: 500; }
+        .progress-percent { font-size: 1.5rem; font-weight: 600; }
+
+        .progress-bar-bg {
+            height: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 0.75rem;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        .progress-text { font-size: 0.8125rem; color: var(--text-secondary); }
+
+        .sync-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .sync-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+
+        .sync-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .sync-btn {
+            padding: 0.75rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            cursor: pointer;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .sync-btn:hover { 
+            background: var(--bg-elevated); 
+            border-color: var(--info); 
+        }
+
+        .sync-btn-icon {
+            font-size: 1rem;
+        }
+
+        .admin-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: none;
+        }
+
+        .admin-panel.visible { display: block; }
+
+        .admin-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+
+        .admin-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .admin-btn {
+            padding: 0.75rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .admin-btn:hover { background: var(--bg-elevated); border-color: var(--accent); }
+
+        .review-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .review-header {
+            padding: 2rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 1.5rem;
+            align-items: flex-start;
+            position: relative;
+        }
+
+        .review-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            overflow: hidden;
+            flex-shrink: 0;
+            border: 2px solid var(--border);
+        }
+
+        .review-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .review-info { flex: 1; }
+
+        .review-name { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.25rem; }
+        .review-username { font-size: 0.9375rem; color: var(--text-secondary); margin-bottom: 0.5rem; }
+
+        .review-uid {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: monospace;
+            background: var(--bg-tertiary);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+
+        .review-badges { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+        .badge {
+            padding: 0.25rem 0.625rem;
+            border-radius: 4px;
+            font-size: 0.6875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: 1px solid var(--border);
+        }
+
+        .badge-moderator { background: rgba(58, 58, 58, 0.3); }
+        .badge-subscriber { background: rgba(139, 107, 58, 0.15); }
+        .badge-level { background: var(--bg-tertiary); color: var(--text-secondary); }
+        .badge-v2 {
+            background: rgba(58, 90, 139, 0.25);
+            border: 1px solid #3a5a8b;
+            color: #7aaae0;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .tiktok-link {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            width: 40px;
+            height: 40px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .tiktok-link:hover {
+            background: #fe2c55;
+            border-color: #fe2c55;
+            transform: scale(1.1);
+        }
+
+        .tiktok-link svg {
+            width: 20px;
+            height: 20px;
+            fill: var(--text-primary);
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-primary);
+        }
+
+        .stat-cell {
+            padding: 1.25rem;
+            border-right: 1px solid var(--border);
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .stat-cell:last-child { border-right: none; }
+        .stat-cell:hover { background: var(--bg-tertiary); }
+        .stat-cell.active { background: var(--bg-tertiary); border-bottom: 2px solid var(--text-secondary); }
+
+        .stat-cell-value { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.25rem; }
+
+        .stat-cell-label {
+            font-size: 0.6875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+        }
+
+        .review-content { padding: 1.5rem; max-height: 400px; overflow-y: auto; }
+        .content-empty { text-align: center; padding: 3rem; color: var(--text-muted); }
+
+        .content-list { display: flex; flex-direction: column; gap: 0.75rem; }
+
+        .content-item {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 1rem;
+        }
+
+        .content-item-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+
+        .content-item-count {
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            background: var(--bg-tertiary);
+            padding: 0.125rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .content-item-text { font-size: 0.9375rem; line-height: 1.5; word-wrap: break-word; }
+        .content-item-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; }
+
+        .translation-bar {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .translation-btn {
+            padding: 0.375rem 0.75rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .translation-btn:hover {
+            border-color: var(--info);
+            color: var(--text-primary);
+        }
+
+        .translation-btn.active {
+            background: var(--info);
+            color: var(--text-primary);
+            border-color: var(--info);
+        }
+
+        .translation-indicator {
+            font-size: 0.6875rem;
+            color: var(--text-muted);
+            margin-left: auto;
+        }
+
+        .translated-text {
+            color: var(--success);
+            font-style: italic;
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.875rem;
+        }
+
+        .translation-loading {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--border);
+            border-top-color: var(--info);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: 0.5rem;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .review-actions {
+            padding: 1.5rem;
+            border-top: 1px solid var(--border);
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            background: var(--bg-primary);
+        }
+
+        .action-btn {
+            padding: 1rem;
+            border: 1px solid;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-predator { background: transparent; border-color: var(--danger); color: var(--text-primary); }
+        .btn-predator:hover { background: var(--danger); }
+        .btn-suspect { background: transparent; border-color: var(--warning); color: var(--text-primary); }
+        .btn-suspect:hover { background: var(--warning); }
+        .btn-clear { background: transparent; border-color: var(--success); color: var(--text-primary); }
+        .btn-clear:hover { background: var(--success); }
+
+        .virtual-list-container {
+            position: relative;
+            overflow-y: auto;
+            max-height: 70vh;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .virtual-list-content {
+            position: relative;
+        }
+
+        .virtual-item {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 80px;
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            cursor: pointer;
+            background: var(--bg-secondary);
+        }
+
+        .virtual-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .virtual-item-placeholder {
+            height: 80px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .user-list { display: flex; flex-direction: column; gap: 0.75rem; }
+
+        .user-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1.25rem;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .user-card:hover { border-color: var(--accent); }
+
+        .user-card-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .user-card-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+        .user-card-info { flex: 1; min-width: 0; }
+
+        .user-card-name { font-size: 1rem; font-weight: 500; margin-bottom: 0.125rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .user-card-username { font-size: 0.8125rem; color: var(--text-secondary); font-family: monospace; }
+
+        .user-card-stats {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.375rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .user-card-status {
+            padding: 0.375rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            flex-shrink: 0;
+        }
+
+        .status-predator { background: var(--danger); color: var(--text-primary); }
+        .status-suspect { background: var(--warning); color: var(--text-primary); }
+        .status-cleared { background: var(--success); color: var(--text-primary); }
+        .status-safe { background: var(--info); color: var(--text-primary); }
+        .btn-safe { background: transparent; border-color: var(--info); color: var(--text-primary); }
+        .btn-safe:hover { background: var(--info); }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .empty-title { font-size: 1.25rem; font-weight: 500; margin-bottom: 0.5rem; color: var(--text-secondary); }
+        .empty-text { font-size: 0.9375rem; color: var(--text-muted); }
+
+        .pagination {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .page-btn {
+            min-width: 40px;
+            height: 40px;
+            padding: 0 0.75rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .page-btn:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+
+        .page-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+
+        .page-btn.dots {
+            cursor: default;
+            background: transparent;
+            border-color: transparent;
+        }
+
+        .page-btn.dots:hover {
+            background: transparent;
+            border-color: transparent;
+            color: var(--text-secondary);
+        }
+
+        .permission-notice {
+            background: var(--warning);
+            color: var(--text-primary);
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1.5rem;
+            font-size: 0.9375rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .permission-notice::before {
+            content: "⚠️";
+            font-size: 1.25rem;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10001;
+            padding: 2rem;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            width: 100%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title { font-size: 1.125rem; font-weight: 600; }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            border: none;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            font-size: 1.25rem;
+            cursor: pointer;
+        }
+
+        .modal-close:hover { background: var(--danger); color: var(--text-primary); }
+        .modal-body { padding: 1.5rem; }
+
+        .modal-textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 1rem;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-family: 'Courier New', monospace;
+            font-size: 0.8125rem;
+            resize: vertical;
+            margin-bottom: 1rem;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(13, 13, 13, 0.95);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .loading-overlay.active { display: flex; }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--bg-tertiary);
+            border-top-color: var(--text-secondary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-text { color: var(--text-secondary); font-size: 0.9375rem; }
+
+        .file-upload-area {
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--bg-primary);
+        }
+
+        .file-upload-area:hover {
+            border-color: var(--accent);
+            background: var(--bg-tertiary);
+        }
+
+        .file-upload-area.dragover {
+            border-color: var(--success);
+            background: rgba(58, 107, 58, 0.1);
+        }
+
+        .file-upload-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .file-upload-text {
+            color: var(--text-secondary);
+            font-size: 0.9375rem;
+        }
+
+        .file-upload-hint {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-info {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .file-info.visible {
+            display: block;
+        }
+
+        .file-name {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .file-size {
+            color: var(--text-muted);
+            font-size: 0.8125rem;
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .review-actions { grid-template-columns: 1fr; }
+            .review-header { flex-direction: column; text-align: center; }
+            .tiktok-link { position: static; margin-top: 1rem; align-self: center; }
+            .pagination { justify-content: center; }
+        }
+
+        /* ==========================================
+           CHAT SYSTEM STYLES - ATUALIZADO
+           ========================================== */
+        
+        .chat-container {
+            display: flex;
+            height: calc(100vh - 61px);
+            background: var(--chat-bg);
+        }
+
+        .chat-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-primary);
+        }
+
+        .chat-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .chat-header-info h3 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .chat-header-info p {
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .chat-message {
+            max-width: 80%;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            position: relative;
+            animation: messageSlide 0.3s ease-out;
+        }
+
+        @keyframes messageSlide {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .chat-message.own {
+            align-self: flex-end;
+        }
+
+        .chat-message-bubble {
+            padding: 1rem;
+            border-radius: 12px;
+            background: var(--chat-bubble-other);
+            border: 1px solid var(--border);
+            word-wrap: break-word;
+            position: relative;
+        }
+
+        .chat-message.own .chat-message-bubble {
+            background: var(--chat-bubble-user);
+            border-color: var(--success);
+        }
+
+        /* Admin Message - Premium Style */
+        .chat-message.admin-message .chat-message-bubble {
+            border: 2px solid transparent;
+            background: linear-gradient(var(--bg-secondary), var(--bg-secondary)) padding-box,
+                        linear-gradient(45deg, #ff0000, #ff8800, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff) border-box;
+            position: relative;
+        }
+
+        .chat-message.admin-message .chat-message-bubble::before {
+            content: '★ ADMIN';
+            position: absolute;
+            top: -10px;
+            right: 10px;
+            background: linear-gradient(45deg, #ff0000, #ff8800);
+            color: white;
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+
+        /* Destacar mensagem - Efeito RGB fraco em toda a largura */
+        .chat-message.highlighted {
+            max-width: 100%;
+            width: 100%;
+            padding: 0.5rem 0;
+            margin: 0.5rem 0;
+        }
+
+        .chat-message.highlighted .chat-message-bubble {
+            background: linear-gradient(90deg, 
+                rgba(255, 0, 0, 0.1) 0%, 
+                rgba(255, 136, 0, 0.15) 20%, 
+                rgba(255, 255, 0, 0.1) 40%, 
+                rgba(0, 255, 0, 0.15) 60%, 
+                rgba(0, 255, 255, 0.1) 80%, 
+                rgba(255, 0, 255, 0.15) 100%);
+            border: 2px solid transparent;
+            background-clip: padding-box;
+            position: relative;
+            animation: rgbGlow 3s linear infinite;
+        }
+
+        .chat-message.highlighted .chat-message-bubble::before {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            border-radius: 12px;
+            padding: 2px;
+            background: linear-gradient(90deg, #ff0000, #ff8800, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+            background-size: 400% 100%;
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            animation: rgbBorder 3s linear infinite;
+            z-index: -1;
+        }
+
+        @keyframes rgbGlow {
+            0%, 100% { box-shadow: 0 0 20px rgba(255, 0, 0, 0.2), 0 0 40px rgba(0, 255, 0, 0.1); }
+            33% { box-shadow: 0 0 20px rgba(0, 255, 255, 0.2), 0 0 40px rgba(255, 0, 255, 0.1); }
+            66% { box-shadow: 0 0 20px rgba(255, 255, 0, 0.2), 0 0 40px rgba(0, 0, 255, 0.1); }
+        }
+
+        @keyframes rgbBorder {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 400% 50%; }
+        }
+
+        .chat-message-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .chat-message-author {
+            font-size: 0.8125rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .chat-message-time {
+            font-size: 0.6875rem;
+            color: var(--text-muted);
+        }
+
+        /* Botões de moderação (apenas admin) */
+        .chat-message-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .chat-message:hover .chat-message-actions {
+            opacity: 1;
+        }
+
+        .chat-action-btn-small {
+            padding: 0.25rem 0.5rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            font-size: 0.6875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chat-action-btn-small:hover {
+            background: var(--accent);
+            color: var(--text-primary);
+        }
+
+        .chat-action-btn-small.delete:hover {
+            background: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .chat-action-btn-small.highlight:hover {
+            background: linear-gradient(45deg, #ff0000, #ff8800);
+            border-color: transparent;
+            color: white;
+        }
+
+        .chat-message-text {
+            font-size: 0.9375rem;
+            line-height: 1.5;
+            outline: none;
+            min-height: 1.5em;
+        }
+
+        .chat-message-text[contenteditable="true"] {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.5rem;
+            border-radius: 4px;
+            border: 1px solid var(--info);
+        }
+
+        /* BBCode Styled Text */
+        .chat-message-text .bbcode-bold {
+            font-weight: 700;
+        }
+
+        .chat-message-text .bbcode-color {
+            font-weight: 500;
+        }
+
+        /* Clickable Links */
+        .chat-message-text a {
+            color: var(--info);
+            text-decoration: underline;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chat-message-text a:hover {
+            color: var(--info-hover);
+            text-shadow: 0 0 8px rgba(58, 90, 139, 0.5);
+        }
+
+        /* Emoji Styling - ATUALIZADO PARA RGB */
+        .chat-emoji {
+            font-size: 1.2em;
+            vertical-align: middle;
+            display: inline-block;
+            transition: transform 0.2s;
+        }
+
+        .chat-emoji:hover {
+            transform: scale(1.2);
+        }
+
+        /* Cores específicas dos emojis */
+        .emoji-purple { filter: hue-rotate(270deg) saturate(1.5); }
+        .emoji-red { filter: hue-rotate(0deg) saturate(2) brightness(1.2); }
+        .emoji-yellow { filter: hue-rotate(60deg) saturate(1.5); }
+        .emoji-green { filter: hue-rotate(120deg) saturate(1.5); }
+        .emoji-blue { filter: hue-rotate(240deg) saturate(1.5); }
+        .emoji-orange { filter: hue-rotate(30deg) saturate(2); }
+        .emoji-pink { filter: hue-rotate(300deg) saturate(1.5); }
+        .emoji-cyan { filter: hue-rotate(180deg) saturate(1.5); }
+
+        /* RGB Animated Emoji - Mantém a animação */
+        .emoji-rgb {
+            animation: emojiRgb 2s linear infinite;
+        }
+
+        @keyframes emojiRgb {
+            0% { filter: hue-rotate(0deg) saturate(2) brightness(1.2); }
+            100% { filter: hue-rotate(360deg) saturate(2) brightness(1.2); }
+        }
+
+        .chat-message-file {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            margin-top: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            max-width: 100%;
+            overflow: hidden;
+        }
+
+        .chat-message-file:hover {
+            background: rgba(0,0,0,0.3);
+        }
+
+        .chat-file-icon {
+            font-size: 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .chat-file-info {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .chat-file-name {
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.125rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 300px;
+        }
+
+        @media (max-width: 768px) {
+            .chat-file-name {
+                max-width: 150px;
+            }
+        }
+
+        .chat-file-size {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Download Button */
+        .chat-download-btn {
+            background: var(--success);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-size: 0.8125rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .chat-download-btn:hover {
+            background: var(--success-hover);
+            transform: scale(1.05);
+        }
+
+        .chat-message-image {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            position: relative;
+        }
+
+        .chat-message-image:hover {
+            transform: scale(1.02);
+        }
+
+        /* Admin can download, reviewers see lock */
+        .chat-message-image.locked {
+            cursor: not-allowed;
+            filter: brightness(0.7);
+        }
+
+        .chat-message-image.locked::after {
+            content: '🔒';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            opacity: 0.8;
+        }
+
+        .chat-input-area {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border);
+            background: var(--bg-secondary);
+        }
+
+        .chat-input-container {
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-end;
+        }
+
+        .chat-input-wrapper {
+            flex: 1;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 0.75rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: 0.9375rem;
+            resize: none;
+            outline: none;
+            max-height: 120px;
+            font-family: inherit;
+        }
+
+        .chat-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .chat-input-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .chat-action-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            font-size: 1.125rem;
+        }
+
+        .chat-action-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        /* Admin Only Emoji Button */
+        .chat-action-btn.emoji-btn {
+            display: none;
+        }
+
+        .chat-action-btn.emoji-btn.visible {
+            display: flex;
+        }
+
+        .chat-action-btn.emoji-btn:hover {
+            background: linear-gradient(45deg, #ff0000, #ff8800, #ffff00);
+            color: white;
+        }
+
+        .chat-send-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            background: var(--success);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            font-size: 1.25rem;
+        }
+
+        .chat-send-btn:hover {
+            background: var(--success-hover);
+            transform: scale(1.05);
+        }
+
+        .chat-send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .chat-file-preview {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+        }
+
+        .chat-file-preview-icon {
+            font-size: 1.5rem;
+        }
+
+        .chat-file-preview-info {
+            flex: 1;
+        }
+
+        .chat-file-preview-name {
+            font-size: 0.875rem;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 400px;
+        }
+
+        .chat-file-preview-size {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .chat-file-preview-remove {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: none;
+            background: var(--danger);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+        }
+
+        .chat-file-preview-remove:hover {
+            background: var(--danger-hover);
+        }
+
+        /* Upload progress sem storage - processando para Base64 */
+        .chat-upload-progress {
+            position: fixed;
+            bottom: 100px;
+            right: 2rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            min-width: 300px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+
+        .chat-upload-progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .chat-upload-progress-title {
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .chat-upload-progress-bar {
+            height: 4px;
+            background: var(--bg-tertiary);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .chat-upload-progress-fill {
+            height: 100%;
+            background: var(--success);
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+
+        .chat-image-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10002;
+            padding: 2rem;
+        }
+
+        .chat-image-modal.active {
+            display: flex;
+        }
+
+        .chat-image-modal img {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+            border-radius: 8px;
+        }
+
+        .chat-image-modal-close {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chat-image-modal-close:hover {
+            background: var(--danger);
+        }
+
+        .chat-system-message {
+            text-align: center;
+            padding: 0.5rem;
+            color: var(--text-muted);
+            font-size: 0.8125rem;
+            font-style: italic;
+        }
+
+        .chat-typing-indicator {
+            display: flex;
+            gap: 0.25rem;
+            padding: 0.5rem 1rem;
+            align-items: center;
+            color: var(--text-muted);
+            font-size: 0.8125rem;
+        }
+
+        .chat-typing-dots {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        .chat-typing-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: typingBounce 1.4s infinite ease-in-out both;
+        }
+
+        .chat-typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .chat-typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes typingBounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        .chat-notification {
+            position: fixed;
+            top: 80px;
+            right: 2rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            min-width: 300px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .chat-notification-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .chat-notification-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .chat-notification-info {
+            flex: 1;
+        }
+
+        .chat-notification-name {
+            font-weight: 600;
+            font-size: 0.9375rem;
+        }
+
+        .chat-notification-text {
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chat-notification-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1.25rem;
+            padding: 0.25rem;
+        }
+
+        .chat-notification-close:hover {
+            color: var(--text-primary);
+        }
+
+        /* File size warning */
+        .chat-file-warning {
+            background: var(--warning);
+            color: var(--text-primary);
+            padding: 0.75rem;
+            border-radius: 6px;
+            margin-bottom: 0.75rem;
+            font-size: 0.8125rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .chat-file-warning::before {
+            content: "⚠️";
+        }
+
+        /* Emoji Picker for Admin */
+        .emoji-picker {
+            position: absolute;
+            bottom: 80px;
+            right: 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            display: none;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 0.5rem;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            z-index: 100;
+            max-width: 320px;
+        }
+
+        .emoji-picker.visible {
+            display: grid;
+        }
+
+        .emoji-picker-item {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 1.25rem;
+            transition: all 0.2s;
+        }
+
+        .emoji-picker-item:hover {
+            background: var(--bg-tertiary);
+            transform: scale(1.2);
+        }
+
+        @media (max-width: 768px) {
+            .chat-message { max-width: 90%; }
+            .chat-message.highlighted { max-width: 100%; }
+            .chat-file-name { max-width: 120px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-screen active" id="loginScreen">
+        <div class="login-box">
+            <h1 class="login-title">NightWatch</h1>
+            <p class="login-subtitle">Predator Classification System v2.0</p>
+            
+            <div class="input-group">
+                <label class="input-label">Username</label>
+                <input type="text" class="input-field" id="username" placeholder="Enter username" autocomplete="username">
+            </div>
+            
+            <div class="input-group">
+                <label class="input-label">Password</label>
+                <input type="password" class="input-field" id="password" placeholder="Enter password" autocomplete="current-password">
+            </div>
+            
+            <button class="btn btn-primary" id="loginBtn">Access System</button>
+            
+            <div class="error-msg" id="loginError"></div>
+            
+            <div class="security-info">
+                AES-256-GCM Encryption | Session: 5 hours
+            </div>
+        </div>
+    </div>
+
+    <div class="app" id="app">
+        <header class="app-header">
+            <div class="app-title">NightWatch</div>
+            <div class="header-spacer"></div>
+            <div class="session-info" id="sessionTimer">--:--:--</div>
+            <div class="enc-badge">Encrypted</div>
+            <div class="role-badge" id="userRoleBadge">ADMIN</div>
+            <button class="logout-btn" id="logoutBtn">Logout</button>
+        </header>
+
+        <div class="app-body">
+            <nav class="sidebar">
+                <div class="nav-section">
+                    <div class="nav-section-title">Operations</div>
+                    <button class="nav-btn active" id="nav-review" data-view="review">
+                        <span>Review</span>
+                        <span class="nav-badge" id="badgePending">0</span>
+                    </button>
+                    <button class="nav-btn" id="nav-stats" data-view="stats">
+                        <span>Analytics</span>
+                    </button>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-section-title">Classifications</div>
+                    <button class="nav-btn" id="nav-predators" data-view="predators">
+                        <span>Predators</span>
+                        <span class="nav-badge" id="badgePredators">0</span>
+                    </button>
+                    <button class="nav-btn" id="nav-suspects" data-view="suspects">
+                        <span>Suspects</span>
+                        <span class="nav-badge" id="badgeSuspects">0</span>
+                    </button>
+                    <button class="nav-btn" id="nav-cleared" data-view="cleared">
+                        <span>Cleared</span>
+                        <span class="nav-badge" id="badgeCleared">0</span>
+                    </button>
+                    <button class="nav-btn admin-only-nav" id="nav-safe" data-view="safe" style="display:none;">
+                        <span>⭐ Safe</span>
+                        <span class="nav-badge" id="badgeSafe">0</span>
+                    </button>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Communication</div>
+                    <button class="nav-btn" id="nav-chat" data-view="chat">
+                        <span>💬 Team Chat</span>
+                        <span class="nav-badge" id="badgeChat" style="display:none;">0</span>
+                    </button>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Sync</div>
+                    <button class="nav-btn" id="nav-sync-export" data-view="sync-export">
+                        <span>📤 Export Progress</span>
+                    </button>
+                    <button class="nav-btn" id="nav-sync-import" data-view="sync-import">
+                        <span>📥 Import Progress</span>
+                    </button>
+                </div>
+            </nav>
+
+            <main class="main-content">
+                <div class="view active" id="view-review">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Pending Review</div>
+                            <div class="stat-value" id="statPending">0</div>
+                            <div class="stat-subtitle">Users awaiting classification</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Total Reviewed</div>
+                            <div class="stat-value" id="statReviewed">0</div>
+                            <div class="stat-subtitle">Completed classifications</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Predators Detected</div>
+                            <div class="stat-value" id="statPredators">0</div>
+                            <div class="stat-subtitle">High risk users</div>
+                        </div>
+                    </div>
+
+                    <div class="progress-section">
+                        <div class="progress-header">
+                            <div class="progress-title">Classification Progress</div>
+                            <div class="progress-percent" id="progressPercent">0%</div>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" id="progressBar" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-text" id="progressText">0 of 0 users reviewed</div>
+                    </div>
+
+                    <div class="sync-panel" id="syncPanel">
+                        <div class="sync-title">🔄 Synchronization</div>
+                        <div class="sync-grid">
+                            <button class="sync-btn" id="btnQuickExport">
+                                <span class="sync-btn-icon">📤</span>
+                                <span>Export Progress</span>
+                            </button>
+                            <button class="sync-btn" id="btnQuickImport">
+                                <span class="sync-btn-icon">📥</span>
+                                <span>Import Progress</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="admin-panel" id="adminPanel">
+                        <div class="admin-title">Administrator Controls</div>
+                        <div class="admin-grid">
+                            <button class="admin-btn" id="btnExportPredators">Export Predators</button>
+                            <button class="admin-btn" id="btnExportSuspects">Export Suspects</button>
+                            <button class="admin-btn" id="btnExportCleared">Export Cleared</button>
+                            <button class="admin-btn" id="btnExportSafe">Export Safe</button>
+                            <button class="admin-btn" id="btnExportAll">Export All Data</button>
+                            <button class="admin-btn" id="btnSearch">Search Users</button>
+                            <button class="admin-btn" id="btnReloadData">Reload Dataset</button>
+                            <button class="admin-btn" id="btnAutoClear" style="border-color: var(--success); color: var(--success);">Auto-Clear Empty Profiles</button>
+                            <button class="admin-btn" id="btnSearchComments" style="border-color: var(--info); color: var(--info);">Search Comments</button>
+                        </div>
+                    </div>
+
+                    <div class="modal-overlay" id="autoClearModal">
+                        <div class="modal" style="max-width: 500px;">
+                            <div class="modal-header">
+                                <span class="modal-title">Profile Scan</span>
+                                <button class="modal-close" id="autoClearModalClose">×</button>
+                            </div>
+                            <div class="modal-body">
+                                <div id="autoClearStatus" style="margin-bottom: 1rem; font-size: 0.9375rem; color: var(--text-secondary);">
+                                    Scanning profiles...
+                                </div>
+                                <div class="progress-bar-bg" style="margin-bottom: 0.75rem;">
+                                    <div class="progress-bar-fill" id="autoClearProgressBar" style="width: 0%; background: var(--success);"></div>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 1rem;">
+                                    <span id="autoClearCount">0 / 0 processed</span>
+                                    <span id="autoClearCleared">0 cleared</span>
+                                </div>
+                                <div style="display: flex; justify-content: flex-end; font-size: 0.8125rem; margin-bottom: 1.25rem;">
+                                    <span id="autoClearRequeued" style="color: var(--warning);">0 sent back to review</span>
+                                </div>
+                                <div style="background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; padding: 0.75rem; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+                                    <strong style="color: var(--text-secondary); display: block; margin-bottom: 0.375rem;">What this does:</strong>
+                                    <span style="display:block; margin-bottom:0.25rem;">✓ <strong style="color:var(--success)">Clears</strong> unreviewed &amp; suspects with: Joins ≤ 3, Comments = 0, Gifts = 0, Likes = 0</span>
+                                    <span style="display:block; margin-bottom:0.25rem;">↩ <strong style="color:var(--warning)">Re-queues</strong> auto-cleared users who now have new activity (joins &gt; 3 or any comment/gift/like)</span>
+                                    <span style="display:block;">✗ <strong style="color:var(--danger)">Predators &amp; suspects</strong> are never touched</span>
+                                </div>
+                                <div style="display: flex; gap: 0.75rem;">
+                                    <button class="admin-btn" id="autoClearConfirmBtn" style="flex: 1; background: var(--success); border-color: var(--success); color: var(--text-primary);">Start</button>
+                                    <button class="admin-btn" id="autoClearStopBtn" style="flex: 1; display: none; background: var(--danger); border-color: var(--danger); color: var(--text-primary);">Stop</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-overlay" id="commentSearchModal">
+                        <div class="modal" style="max-width:680px;">
+                            <div class="modal-header">
+                                <span class="modal-title">Comment Search</span>
+                                <button class="modal-close" id="commentSearchModalClose">×</button>
+                            </div>
+                            <div class="modal-body">
+                                <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem;">
+                                    <input type="text" id="commentSearchInput" placeholder="term or phrase..." style="flex:1;background:var(--bg-primary);border:1px solid var(--border);color:var(--text-primary);padding:0.5rem 0.75rem;border-radius:4px;font-size:0.875rem;outline:none;">
+                                    <button class="admin-btn" id="commentSearchRunBtn" style="padding:0.5rem 1rem;">Search</button>
+                                </div>
+                                <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.75rem;">Fuzzy match — finds similar terms too. Click result to open profile.</div>
+                                <div id="commentSearchResults" style="max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:0.4rem;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="review-card" id="reviewCard">
+                        <div class="review-header">
+                            <div class="review-avatar">
+                                <img src="" alt="" id="reviewAvatarImg" style="display: none;">
+                            </div>
+                            <div class="review-info">
+                                <div class="review-name" id="reviewName">Loading...</div>
+                                <div class="review-username" id="reviewUsername">@username</div>
+                                <div class="review-uid" id="reviewUid">UID: ---</div>
+                                <div class="review-badges" id="reviewBadges"></div>
+                                <button id="btnDownloadProfile" class="admin-only-feature" style="display:none;margin-top:0.4rem;padding:0.2rem 0.6rem;font-size:0.72rem;background:transparent;border:1px solid #444;color:#888;border-radius:3px;cursor:pointer;letter-spacing:0.02em;" title="Download full profile data">⬇ dump profile</button>
+                            </div>
+
+                            <!-- TikTok Info Panel (EnsembleData) -->
+                            <div id="tmPanel" style="display:none;margin-left:auto;min-width:230px;max-width:300px;background:linear-gradient(135deg,#0a120a 0%,#0d1a0d 100%);border:1px solid #1f3d1f;border-radius:10px;padding:0.7rem 1rem;font-family:monospace;font-size:0.72rem;box-shadow:0 2px 12px rgba(0,80,0,0.18);">
+                                <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.5rem;padding-bottom:0.4rem;border-bottom:1px solid #1f3d1f;">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="#4caf50"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
+                                    <span style="color:#4caf50;font-weight:700;font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;">TikTok Info</span>
+                                    <span id="tmBadge" style="margin-left:auto;font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:3px;background:#0f1f0f;color:#555;">—</span>
+                                </div>
+                                <div id="tmLoading" style="display:none;text-align:center;padding:0.6rem 0;">
+                                    <span style="display:inline-block;width:10px;height:10px;border:2px solid #1f3d1f;border-top-color:#4caf50;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:0.4rem;"></span>
+                                    <span style="color:#3a6b3a;font-size:0.68rem;">buscando...</span>
+                                </div>
+                                <div id="tmError" style="display:none;color:#7a4a4a;font-size:0.68rem;padding:0.3rem 0;text-align:center;"></div>
+                                <div id="tmBody" style="display:none;">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;">
+                                        <span id="tmCountry" style="color:#81c784;font-size:0.8rem;font-weight:700;"></span>
+                                        <span id="tmVerified" style="display:none;background:#1a3d1a;color:#4caf50;font-size:0.6rem;padding:0.1rem 0.45rem;border-radius:3px;border:1px solid #2d6b2d;">✓ verified</span>
+                                    </div>
+                                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.3rem;margin-bottom:0.4rem;">
+                                        <div style="background:#0f1f0f;border-radius:5px;padding:0.3rem 0.2rem;text-align:center;">
+                                            <div id="tmFollowers" style="color:#e0e0e0;font-size:0.78rem;font-weight:700;">—</div>
+                                            <div style="color:#555;font-size:0.58rem;margin-top:0.1rem;">seguidores</div>
+                                        </div>
+                                        <div style="background:#0f1f0f;border-radius:5px;padding:0.3rem 0.2rem;text-align:center;">
+                                            <div id="tmLikes" style="color:#e0e0e0;font-size:0.78rem;font-weight:700;">—</div>
+                                            <div style="color:#555;font-size:0.58rem;margin-top:0.1rem;">likes</div>
+                                        </div>
+                                        <div style="background:#0f1f0f;border-radius:5px;padding:0.3rem 0.2rem;text-align:center;">
+                                            <div id="tmVideos" style="color:#e0e0e0;font-size:0.78rem;font-weight:700;">—</div>
+                                            <div style="color:#555;font-size:0.58rem;margin-top:0.1rem;">vídeos</div>
+                                        </div>
+                                    </div>
+                                    <div id="tmBio" style="display:none;color:#556655;font-size:0.64rem;font-style:italic;border-top:1px solid #1a2d1a;padding-top:0.3rem;margin-bottom:0.3rem;max-height:2.4rem;overflow:hidden;"></div>
+                                    <div style="display:flex;justify-content:space-between;border-top:1px solid #141f14;padding-top:0.3rem;">
+                                        <span id="tmCreated" style="color:#3a5a3a;font-size:0.62rem;"></span>
+                                        <span id="tmUserId" style="color:#2a3a2a;font-size:0.6rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Fim TikTok Info Panel -->
+
+                            <a href="#" target="_blank" class="tiktok-link" id="tiktokLink" title="Abrir perfil no TikTok">
+                                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                                </svg>
+                            </a>
+                        </div>
+
+                        <div class="stats-row">
+                            <div class="stat-cell active" data-tab="comments">
+                                <div class="stat-cell-value" id="countComments">0</div>
+                                <div class="stat-cell-label">Comments</div>
+                            </div>
+                            <div class="stat-cell" data-tab="gifts">
+                                <div class="stat-cell-value" id="countGifts">0</div>
+                                <div class="stat-cell-label">Gifts</div>
+                            </div>
+                            <div class="stat-cell" data-tab="likes">
+                                <div class="stat-cell-value" id="countLikes">0</div>
+                                <div class="stat-cell-label">Likes</div>
+                            </div>
+                            <div class="stat-cell" data-tab="joins">
+                                <div class="stat-cell-value" id="countJoins">0</div>
+                                <div class="stat-cell-label">Joins</div>
+                            </div>
+                        </div>
+
+                        <div class="translation-bar" id="translationBar" style="padding: 0 1.5rem; margin-top: 1rem;">
+                            <span style="font-size: 0.75rem; color: var(--text-muted);">Traduzir para:</span>
+                            <button class="translation-btn active" data-lang="original">Original</button>
+                            <button class="translation-btn" data-lang="pt">Português</button>
+                            <button class="translation-btn" data-lang="es">Español</button>
+                            <button class="translation-btn" data-lang="en">English</button>
+                            <span class="translation-indicator" id="translationIndicator"></span>
+                        </div>
+
+                        <div class="review-content" id="reviewContent">
+                            <div class="content-empty">Select a category to view interactions</div>
+                        </div>
+
+                        <div class="review-actions">
+                            <button class="action-btn btn-predator" id="btnMarkPredator">Mark Predator</button>
+                            <button class="action-btn btn-suspect" id="btnMarkSuspect">Mark Suspect</button>
+                            <button class="action-btn btn-clear" id="btnMarkClear">Clear User</button>
+                            <button class="action-btn btn-safe" id="btnMarkSafe">⭐ Mark Safe</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CHAT VIEW - ATUALIZADO SEM SIDEBAR -->
+                <div class="view" id="view-chat" style="max-width: none; padding: 0;">
+                    <div class="chat-container">
+                        <main class="chat-main">
+                            <div class="chat-header">
+                                <div class="chat-header-info">
+                                    <h3>💬 Team Chat</h3>
+                                    <p id="chatHeaderStatus">Connecting...</p>
+                                </div>
+                            </div>
+                            
+                            <div class="chat-messages" id="chatMessages">
+                                <!-- Messages will appear here -->
+                            </div>
+                            
+                            <div class="chat-input-area">
+                                <div class="chat-file-warning" id="chatFileWarning" style="display: none;">
+                                    Files up to 1MB are stored directly. Larger files will be compressed or require external link.
+                                </div>
+                                
+                                <div id="chatFilePreview" style="display: none;">
+                                    <!-- File preview will appear here -->
+                                </div>
+                                
+                                <div class="emoji-picker" id="emojiPicker">
+                                    <!-- Emojis will be populated here -->
+                                </div>
+                                
+                                <div class="chat-input-container">
+                                    <div class="chat-input-wrapper">
+                                        <textarea class="chat-input" id="chatInput" placeholder="Type a message... (Shift+Enter for new line)" rows="1"></textarea>
+                                        <div class="chat-input-actions">
+                                            <input type="file" id="chatFileInput" style="display: none;" accept="image/*,.pdf,.doc,.docx,.txt,.zip">
+                                            <button class="chat-action-btn" id="chatAttachBtn" title="Attach file (max 1MB for direct preview)">📎</button>
+                                            <button class="chat-action-btn emoji-btn" id="chatEmojiBtn" title="Emojis">😊</button>
+                                            <button class="chat-action-btn" id="chatBoldBtn" title="Bold">𝗕</button>
+                                        </div>
+                                    </div>
+                                    <button class="chat-send-btn" id="chatSendBtn">➤</button>
+                                </div>
+                            </div>
+                        </main>
+                    </div>
+                </div>
+
+                <div class="view" id="view-sync-export">
+                    <div class="view-header">
+                        <h1 class="view-title">Export Progress</h1>
+                        <p class="view-subtitle">Download your classification progress as a file</p>
+                    </div>
+                    
+                    <div class="sync-panel" style="max-width: 800px;">
+                        <div class="sync-title">📤 Generate Sync File</div>
+                        
+                        <div style="background: var(--bg-primary); padding: 1.5rem; border-radius: 6px; margin-bottom: 1.5rem;">
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: center; margin-bottom: 1.5rem;">
+                                <div>
+                                    <div style="font-size: 1.5rem; font-weight: 600;" id="exportTotal">0</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Total Reviews</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 1.5rem; font-weight: 600; color: var(--success);" id="exportSize">0 KB</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted);">File Size</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 1.5rem; font-weight: 600; color: var(--info);" id="exportCompression">0%</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Compression</div>
+                                </div>
+                            </div>
+                            
+                            <button class="btn btn-primary" id="btnDownloadSync" style="width: 100%;">
+                                💾 Download nightwatch_sync.txt
+                            </button>
+                            
+                            <div style="margin-top: 1rem; padding: 0.75rem; background: rgba(58, 90, 139, 0.15); 
+                                        border: 1px solid var(--info); border-radius: 4px; font-size: 0.8125rem;">
+                                💡 <strong>Compressed:</strong> The file uses LZ compression to reduce size by up to 80%.
+                                Share this file with other reviewers.
+                            </div>
+                        </div>
+
+                        <div style="background: var(--bg-primary); padding: 1rem; border-radius: 6px;">
+                            <div style="font-size: 0.8125rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                                <strong>Last export:</strong>
+                            </div>
+                            <div id="lastExportInfo" style="font-size: 0.75rem; color: var(--text-muted);">
+                                No export performed in this session
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="view" id="view-sync-import">
+                    <div class="view-header">
+                        <h1 class="view-title">Import Progress</h1>
+                        <p class="view-subtitle">Upload a sync file from another reviewer</p>
+                    </div>
+                    
+                    <div class="sync-panel" style="max-width: 800px;">
+                        <div class="sync-title">📥 Import Sync File</div>
+                        
+                        <div class="file-upload-area" id="fileUploadArea">
+                            <div class="file-upload-icon">📁</div>
+                            <div class="file-upload-text">Click or drag the .txt file here</div>
+                            <div class="file-upload-hint">Only nightwatch_sync.txt files</div>
+                            <input type="file" class="file-input" id="fileInput" accept=".txt">
+                        </div>
+
+                        <div class="file-info" id="fileInfo">
+                            <div class="file-name" id="fileName"></div>
+                            <div class="file-size" id="fileSize"></div>
+                        </div>
+
+                        <button class="btn btn-primary" id="btnProcessFile" style="width: 100%; margin-top: 1rem; display: none;">
+                            🚀 Process and Import
+                        </button>
+
+                        <div id="importResult" style="margin-top: 1rem; display: none;"></div>
+
+                        <div style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-primary); 
+                                    border-radius: 6px; font-size: 0.8125rem; color: var(--text-muted);">
+                            <strong>⚠️ Import rules:</strong>
+                            <ul style="margin-top: 0.5rem; padding-left: 1.25rem;">
+                                <li>Reviews from <strong>admin</strong> have priority over reviewers</li>
+                                <li>In case of conflict, the <strong>most recent timestamp</strong> wins</li>
+                                <li>Your local reviews will never be overwritten by regular reviewers</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="view" id="view-stats">
+                    <div class="view-header">
+                        <h1 class="view-title">Analytics Dashboard</h1>
+                        <p class="view-subtitle">Comprehensive classification statistics</p>
+                    </div>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Total Users</div>
+                            <div class="stat-value" id="statsTotal">0</div>
+                            <div class="stat-subtitle">In dataset</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Completion</div>
+                            <div class="stat-value" id="statsCompletion">0%</div>
+                            <div class="stat-subtitle">Review progress</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Predators</div>
+                            <div class="stat-value" id="statsPredatorsCount">0</div>
+                            <div class="stat-subtitle" id="statsPredatorsPct">0% of reviewed</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Suspects</div>
+                            <div class="stat-value" id="statsSuspectsCount">0</div>
+                            <div class="stat-subtitle" id="statsSuspectsPct">0% of reviewed</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Cleared</div>
+                            <div class="stat-value" id="statsClearedCount">0</div>
+                            <div class="stat-subtitle" id="statsClearedPct">0% of reviewed</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Pending</div>
+                            <div class="stat-value" id="statsPendingCount">0</div>
+                            <div class="stat-subtitle">Awaiting review</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Safe</div>
+                            <div class="stat-value" id="statsSafeCount">0</div>
+                            <div class="stat-subtitle" id="statsSafePct">0% of reviewed</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="view" id="view-predators">
+                    <div class="view-header">
+                        <h1 class="view-title">Predators</h1>
+                        <p class="view-subtitle">Users classified as high risk</p>
+                    </div>
+                    <div id="predatorsPermissionNotice"></div>
+                    <div class="pagination" id="predatorsPagination"></div>
+                    <div class="virtual-list-container" id="predatorsVirtualContainer" style="display: none;">
+                        <div class="virtual-list-content" id="predatorsVirtualContent"></div>
+                    </div>
+                    <div class="user-list" id="listPredators"></div>
+                    <div class="pagination" id="predatorsPaginationBottom"></div>
+                </div>
+
+                <div class="view" id="view-suspects">
+                    <div class="view-header">
+                        <h1 class="view-title">Suspects</h1>
+                        <p class="view-subtitle">Users under suspicion</p>
+                    </div>
+                    <div id="suspectsPermissionNotice"></div>
+                    <div class="pagination" id="suspectsPagination"></div>
+                    <div class="virtual-list-container" id="suspectsVirtualContainer" style="display: none;">
+                        <div class="virtual-list-content" id="suspectsVirtualContent"></div>
+                    </div>
+                    <div class="user-list" id="listSuspects"></div>
+                    <div class="pagination" id="suspectsPaginationBottom"></div>
+                </div>
+
+                <div class="view" id="view-cleared">
+                    <div class="view-header">
+                        <h1 class="view-title">Cleared Users</h1>
+                        <p class="view-subtitle">Low-data profiles cleared automatically — may be re-queued as database updates</p>
+                    </div>
+                    <div id="clearedPermissionNotice"></div>
+                    <div class="pagination" id="clearedPagination"></div>
+                    <div class="virtual-list-container" id="clearedVirtualContainer" style="display: none;">
+                        <div class="virtual-list-content" id="clearedVirtualContent"></div>
+                    </div>
+                    <div class="user-list" id="listCleared"></div>
+                    <div class="pagination" id="clearedPaginationBottom"></div>
+                </div>
+
+                <div class="view" id="view-safe">
+                    <div class="view-header">
+                        <h1 class="view-title">⭐ Safe Users</h1>
+                        <p class="view-subtitle">Confirmed innocent — manually reviewed and marked safe by reviewers</p>
+                    </div>
+                    <div id="safePermissionNotice"></div>
+                    <div class="pagination" id="safePagination"></div>
+                    <div class="virtual-list-container" id="safeVirtualContainer" style="display: none;">
+                        <div class="virtual-list-content" id="safeVirtualContent"></div>
+                    </div>
+                    <div class="user-list" id="listSafe"></div>
+                    <div class="pagination" id="safePaginationBottom"></div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <div class="chat-upload-progress" id="chatUploadProgress" style="display: none;">
+        <div class="chat-upload-progress-header">
+            <span class="chat-upload-progress-title">Processing file...</span>
+            <span id="chatUploadPercent">0%</span>
+        </div>
+        <div class="chat-upload-progress-bar">
+            <div class="chat-upload-progress-fill" id="chatUploadProgressBar" style="width: 0%"></div>
+        </div>
+    </div>
+
+    <div class="chat-image-modal" id="chatImageModal">
+        <button class="chat-image-modal-close" id="chatImageModalClose">×</button>
+        <img src="" alt="Full size" id="chatModalImage">
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loadingText">Initializing...</div>
+    </div>
+
+    <script>
+        'use strict';
+
+        const CONFIG = {
+            SESSION_DURATION: 5 * 60 * 60 * 1000,
+            SALT_PREFIX: 'nightwatch_v2_',
+            DATA_PATH: 'https://gghst.github.io/nightwatch-classifier/data/',
+            BLOCKED_USERS: ['thiagoz.p', 'vollsec'],
+            ITEMS_PER_PAGE: 50,
+            MAX_PAGES_WITHOUT_DOTS: 8,
+            VIRTUAL_ITEM_HEIGHT: 80,
+            VIRTUAL_BUFFER: 5,
+            TRANSLATION_CACHE_KEY: 'nightwatch_translations',
+            MYMEMORY_API: 'https://api.mymemory.translated.net/get',
+            MAX_FILE_SIZE_DIRECT: 1 * 1024 * 1024,
+            MAX_FILE_SIZE_CHUNKED: 5 * 1024 * 1024,
+            ALLOWED_FILE_TYPES: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 
+                                'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                                'application/zip', 'application/x-zip-compressed'],
+            CHAT_MAX_MESSAGES: 50,
+            CHAT_LOAD_DELAY: 100,
+            ADMIN_AVATAR: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NSIgZmlsbD0iI2ZmMDAwMCIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjQwIiBmaWxsPSIjMmEyYTJhIi8+PHN2ZyB4PSIzNSIgeT0iMzAiIHdpZHRoPSIzMCIgaGVpZ2h0PSIzMCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSIjZmZkNzAwIj48cGF0aCBkPSJNMTIgMkw5LjE5IDguNjMgMyAxMC4yNCA4LjQ2IDE1LjE0IDcuMDUgMjIgMTIgMTguMjcgMTYuOTUgMjIgMTUuNTQgMTUuMTQgMjEgMTAuMjQgMTQuODEgOC42M3oiLz48L3N2Zz48L3N2Zz4=',
+            REVIEWER_AVATAR: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NSIgZmlsbD0iIzU1NTU1NSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjQwIiBmaWxsPSIjMmEyYTJhIi8+PHN2ZyB4PSIzNSIgeT0iMzAiIHdpZHRoPSIzMCIgaGVpZ2h0PSIzMCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSIjODg4ODg4Ij48cGF0aCBkPSJNMTIgMkM2LjQ4IDIgMiA2LjQ4IDIgMTJzNC40OCAxMCAxMCAxMCAxMC00LjQ4IDEwLTEwUzE3LjUyIDIgMTIgMnptMCAzYzEuNjYgMCAzIDEuMzQgMyAzcy0xLjM0IDMtMyAzLTMtMS4zNC0zLTMgMS4zNC0zIDMtM3ptMCA0LjVjLTIuMzMgMC03IDEuMTctNyAzLjVWMThoMTR2LTEuNWMwLTIuMzMtNC42Ny0zLjUtNy0zLjV6Ii8+PC9zdmc+PC9zdmc+'
+        };
+
+        const USER_DB = {
+    'admin': {
+        // admin / Admin@Tk2025!Secure
+        hash: '964e9359df29b56f782636c947bf8edb37862ee26b36adce35b4cdaf5b37f0bf',
+        role: 'admin',
+        file: 'users_admin.enc'
+    },
+    'reviewer1': {
+        // reviewer1 / Rev1ew$TikTok#2025
+        hash: '33c4414fc5e8482883f9ed46db56d26106c2febabe362a938d3653ff1b7ac248',
+        role: 'reviewer',
+        file: 'users_reviewer1.enc'
+    },
+    'reviewer2': {
+        // reviewer2 / Check@User$Rev2025
+        hash: '57d9a6861da5f3da3424aa7e1919dccb05d429e45536ced99c7d0e9c09b6d8f2',
+        role: 'reviewer',
+        file: 'users_reviewer2.enc'
+    },
+    'reviewer3': {
+        // reviewer3 / Tk$Review3#Secure
+        hash: '7733d6a7474e0d133c349e073a379d43d3cb9a63095e923422d1e651f00e4d25',
+        role: 'reviewer',
+        file: 'users_reviewer3.enc'
+    },
+    'reviewer4': {
+        // reviewer4 / Rev4!Moderate@2025
+        hash: '7069058cc43b569078bf95ad87131d81c8105eb691fb99e54e881b0d8e65ad03',
+        role: 'reviewer',
+        file: 'users_reviewer4.enc'
+    },
+    'reviewer5': {
+        // reviewer5 / Check$Rev5#TikTok
+        hash: 'c3c123c1bc6dc1f2ebc3485177cffc516994b3dfcf0a8a9aed3a99fc405fbc15',
+        role: 'reviewer',
+        file: 'users_reviewer5.enc'
+    }
+};
+
+        function shuffleArray(array) {
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        const state = {
+            user: null,
+            role: null,
+            data: null,
+            key: null,
+            reviews: {},
+            currentUser: null,
+            currentTab: 'comments',
+            view: 'review',
+            sessionExpiry: null,
+            shuffledIndices: [],
+            userIndex: 0,
+            reviewedSet: new Set(),
+            pagination: {
+                predators: 1,
+                suspects: 1,
+                cleared: 1,
+                safe: 1
+            },
+            pendingFile: null,
+            currentTranslationLang: 'original',
+            virtualLists: {},
+            userMap: new Map(),
+            chat: {
+                connected: false,
+                messagesRef: null,
+                presenceRef: null,
+                typingRef: null,
+                currentFile: null,
+                unreadCount: 0,
+                lastReadTimestamp: 0,
+                fileProcessing: false,
+                messagesLoaded: false,
+                emojiPickerOpen: false,
+                editingMessageId: null
+            }
+        };
+
+        function buildUserMap() {
+            state.userMap = new Map();
+            if (state.data?.users) {
+                for (const u of state.data.users) {
+                    state.userMap.set(u.uid, u);
+                }
+            }
+        }
+
+        function buildReviewedSet() {
+            state.reviewedSet = new Set(Object.keys(state.reviews));
+        }
+
+        const languageDetector = {
+            patterns: {
+                pt: /[ãõçáéíóúâêîôûàèìòùäëïöü]/i,
+                es: /[ñáéíóúü¿¡]/i,
+                en: /^[a-zA-Z\s\d\W]*$/,
+                ja: /[\u3040-\u309F\u30A0-\u30FF]/,
+                ko: /[\uAC00-\uD7AF]/,
+                zh: /[\u4E00-\u9FFF]/
+            },
+
+            detect(text) {
+                if (!text || text.length < 3) return 'en';
+                
+                if (this.patterns.ja.test(text)) return 'ja';
+                if (this.patterns.ko.test(text)) return 'ko';
+                if (this.patterns.zh.test(text)) return 'zh';
+                if (this.patterns.es.test(text)) return 'es';
+                if (this.patterns.pt.test(text)) return 'pt';
+                
+                if (/^[a-zA-Z\s\d\W]*$/.test(text)) return 'en';
+                
+                return 'auto';
+            }
+        };
+
+        const translationCache = {
+            cache: new Map(),
+            
+            init() {
+                try {
+                    const saved = localStorage.getItem(CONFIG.TRANSLATION_CACHE_KEY);
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        Object.entries(parsed).forEach(([key, value]) => {
+                            this.cache.set(key, value);
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Failed to load translation cache:', e);
+                }
+            },
+
+            get(text, targetLang) {
+                if (targetLang === 'original') return null;
+                const key = `${text}_${targetLang}`;
+                return this.cache.get(key) || null;
+            },
+
+            set(text, targetLang, translated) {
+                if (targetLang === 'original') return;
+                const key = `${text}_${targetLang}`;
+                if (this.cache.size >= 800) {
+                    const keys = this.cache.keys();
+                    for (let i = 0; i < 300; i++) this.cache.delete(keys.next().value);
+                }
+                this.cache.set(key, translated);
+                this.save();
+            },
+
+            save() {
+                try {
+                    const obj = {};
+                    this.cache.forEach((value, key) => { obj[key] = value; });
+                    localStorage.setItem(CONFIG.TRANSLATION_CACHE_KEY, JSON.stringify(obj));
+                } catch (e) {
+                    const entries = Array.from(this.cache.entries());
+                    this.cache = new Map(entries.slice(-300));
+                    try {
+                        const obj2 = {};
+                        this.cache.forEach((v, k) => { obj2[k] = v; });
+                        localStorage.setItem(CONFIG.TRANSLATION_CACHE_KEY, JSON.stringify(obj2));
+                    } catch (_) { }
+                }
+            }
+        };
+
+        const translationService = {
+            async translate(text, targetLang) {
+                if (!text || targetLang === 'original') return null;
+                
+                const cached = translationCache.get(text, targetLang);
+                if (cached) return cached;
+
+                try {
+                    const sourceLang = languageDetector.detect(text);
+                    if (sourceLang === targetLang) return null;
+
+                    const response = await fetch(
+                        `${CONFIG.MYMEMORY_API}?q=${encodeURIComponent(text)}&langpair=${sourceLang}|${targetLang}`
+                    );
+                    
+                    if (!response.ok) throw new Error('API Error');
+                    
+                    const data = await response.json();
+                    
+                    if (data.responseStatus === 200 && data.responseData?.translatedText) {
+                        const translated = data.responseData.translatedText;
+                        translationCache.set(text, targetLang, translated);
+                        return translated;
+                    }
+                    
+                    return null;
+                } catch (e) {
+                    console.warn('Translation failed:', e);
+                    return null;
+                }
+            },
+
+            async translateBatch(texts, targetLang) {
+                if (targetLang === 'original') return texts.map(() => null);
+                
+                const results = await Promise.all(
+                    texts.map(text => this.translate(text, targetLang))
+                );
+                
+                return results;
+            }
+        };
+
+        var LZString = function() {
+            var r = String.fromCharCode, o = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=", n = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$", e = {};
+            function t(r, o) { if (!e[r]) { e[r] = {}; for (var n = 0; n < r.length; n++) e[r][r.charAt(n)] = n } return e[r][o] }
+            var i = {
+                compressToBase64: function(r) { if (null == r) return ""; var n = i._compress(r, 6, function(r) { return o.charAt(r) }); switch (n.length % 4) { default: case 0: return n; case 1: return n + "==="; case 2: return n + "=="; case 3: return n + "=" } },
+                decompressFromBase64: function(r) { return null == r ? "" : "" == r ? null : i._decompress(r.length, 32, function(n) { return t(o, r.charAt(n)) }) },
+                compress: function(o) { return i._compress(o, 16, function(o) { return r(o) }) },
+                _compress: function(r,
